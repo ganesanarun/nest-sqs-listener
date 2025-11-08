@@ -5,7 +5,7 @@ import {NotificationService} from '../services/notification.service';
 import {NotificationListener} from '../listeners/notification.listener';
 import {TracingListener} from '../listeners/tracing.listener';
 import {NotificationEvent} from '../events/notification.event';
-import { NOTIFICATION_SQS_CLIENT, NOTIFICATION_CONTAINER } from '../tokens';
+import {NOTIFICATION_CONTAINER, NOTIFICATION_SQS_CLIENT} from '../tokens';
 
 
 @Module({

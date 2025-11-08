@@ -6,7 +6,7 @@ import {OrderCreatedListener} from '../listeners/order-created.listener';
 import {OrderCreatedEvent} from '../events/order-created.event';
 import {CustomErrorHandler} from '../error-handlers/custom-error.handler';
 import {TracingListener} from '../listeners/tracing.listener';
-import { ORDER_SQS_CLIENT, ORDER_CONTAINER } from '../tokens';
+import {ORDER_CONTAINER, ORDER_SQS_CLIENT} from '../tokens';
 
 @Module({
     providers: [

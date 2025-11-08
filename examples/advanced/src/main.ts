@@ -1,13 +1,13 @@
 import {NestFactory} from '@nestjs/core';
 import {AppModule} from './app.module';
 import * as dotenv from 'dotenv';
-import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
-import { defaultResource, resourceFromAttributes } from '@opentelemetry/resources';
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import { propagation } from '@opentelemetry/api';
-import { W3CTraceContextPropagator } from '@opentelemetry/core';
-import { registerInstrumentations } from '@opentelemetry/instrumentation';
-import { PinoOtelLoggerService } from './pino-otel-logger.service';
+import {NodeTracerProvider} from '@opentelemetry/sdk-trace-node';
+import {defaultResource, resourceFromAttributes} from '@opentelemetry/resources';
+import {SemanticResourceAttributes} from '@opentelemetry/semantic-conventions';
+import {propagation} from '@opentelemetry/api';
+import {W3CTraceContextPropagator} from '@opentelemetry/core';
+import {registerInstrumentations} from '@opentelemetry/instrumentation';
+import {PinoOtelLoggerService} from './pino-otel-logger.service';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -62,6 +62,6 @@ registerInstrumentations({
 
 bootstrap().catch(err => {
     const logger = new PinoOtelLoggerService();
-    logger.error('Failed to start application:', { error: err });
+    logger.error('Failed to start application:', {error: err});
     process.exit(1);
 });
