@@ -1,6 +1,6 @@
 {
   "name": "@snow-tzu/nest-sqs-listener",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "A NestJS package that abstracts SQS infrastructure complexity, letting you write listeners with pure business logic while handling polling, acknowledgement, errors, and lifecycle automatically",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

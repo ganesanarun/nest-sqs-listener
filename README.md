@@ -1,31 +1,31 @@
 # NestJS SQS Listener
 
+[![npm version](https://img.shields.io/npm/v/@snow-tzu/nest-sqs-listener.svg)](https://www.npmjs.com/package/@snow-tzu/nest-sqs-listener) [![build](https://github.com/ganesanarun/nest-sqs-listener/actions/workflows/build.yml/badge.svg)](https://github.com/ganesanarun/nest-sqs-listener/actions/workflows/build.yml)
+
 A flexible, type-safe NestJS package for consuming messages from AWS SQS queues using a container-based architecture. This package provides programmatic configuration of message consumers with full control over polling, error handling, acknowledgement modes, and message processing lifecycle.
+
+![SQS Listener](docs/images/hero.png)
 
 ## Why This Package?
 
 This package **abstracts all infrastructure concerns** so your listeners contain **only business logic**. No more mixing AWS SDK calls, polling loops, error handling, and acknowledgement logic with your domain code.
 
-**What you write:**
-```typescript
-@Injectable()
-export class OrderCreatedListener implements QueueListener<OrderCreatedEvent> {
-  constructor(private readonly orderService: OrderService) {}
-  
-  async onMessage(message: OrderCreatedEvent, context: MessageContext): Promise<void> {
-    await this.orderService.processNewOrder(message);  // Pure business logic
-  }
-}
-```
+## Comparison
 
-**What the package handles for you:**
-- ✅ SQS polling with long polling optimization
-- ✅ Message deserialization and type conversion
-- ✅ Concurrency control and backpressure
-- ✅ Error handling and retry logic
-- ✅ Message acknowledgement (delete from queue)
-- ✅ Distributed tracing and observability
-- ✅ Graceful shutdown and lifecycle management
+| Capability              | AWS SDK (raw)    | bbc/sqs-consumer | @ssut/nestjs-sqs | @snow-tzu/nest-sqs-listener |
+|-------------------------|------------------|------------------|------------------|-----------------------------|
+| Listener Payload        | Raw JSON         | Raw JSON         | Raw SQS Message  | Strong Domain Event         |
+| Parsing                 | Manual           | Manual           | Manual           | Automatic via converter     |
+| Type Safety             | ❌ None          | ❌ None          | ⚠️ Weak          | ✅ Strong                   |
+| NestJS DI Integration   | ❌ No            | ❌ No            | ✅ Partial       | ✅ Full                     |
+| Architecture Separation | ❌ Poor          | ❌ Poor          | ⚠️ Partial       | ✅ Clean                    |
+| Decorator-Friendly      | ❌ No            | ❌ No            | ❌ No            | ✅ Yes                      |
+| Ack Modes               | Manual only      | Auto only        | Auto only        | ON_SUCCESS / ALWAYS / MANUAL|
+| Centralized Errors      | ❌ No            | ⚠️ Limited       | ❌ No            | ✅ Yes                      |
+| Custom Converters       | ❌ No            | ❌ No            | ❌ No            | ✅ Yes                      |
+| Concurrency Control     | Manual           | ✅ Yes           | ✅ Yes           | ✅ Yes                      |
+| Testability             | Poor             | Hard             | Limited          | ✅ Excellent                |
+| Extensibility           | Low              | Low              | Low              | High                        |
 
 ## Features
 
@@ -43,7 +43,7 @@ export class OrderCreatedListener implements QueueListener<OrderCreatedEvent> {
 npm install @snow-tzu/nest-sqs-listener @aws-sdk/client-sqs
 ```
 
-## Quick Start
+## Getting Started
 
 ### 1. Configure SQSClient as a provider
 
@@ -85,8 +85,6 @@ export class OrderCreatedEvent {
 @Injectable()
 export class OrderCreatedListener implements QueueListener<OrderCreatedEvent> {
   constructor(private readonly orderService: OrderService) {}
-  
-  // Your listener contains ONLY business logic - no infrastructure code!
   async onMessage(message: OrderCreatedEvent, context: MessageContext): Promise<void> {
     await this.orderService.processNewOrder(message);
   }
@@ -111,9 +109,7 @@ import { SQSClient } from '@aws-sdk/client-sqs';
         listener: OrderCreatedListener,
         sqsClient: SQSClient
       ) => {
-        // All infrastructure configuration is isolated here
         const container = new SqsMessageListenerContainer<OrderCreatedEvent>(sqsClient);
-        
         container.configure(options => {
           options
             .queueNames('order-created-queue')
@@ -123,10 +119,8 @@ import { SQSClient } from '@aws-sdk/client-sqs';
             .maxConcurrentMessages(10)
             .visibilityTimeout(30);
         });
-        
         container.setId('orderCreatedListener');
         container.setMessageListener(listener);
-        
         return container;
       },
       inject: [OrderCreatedListener, 'SQS_CLIENT']
@@ -136,12 +130,11 @@ import { SQSClient } from '@aws-sdk/client-sqs';
 export class OrderModule {}
 ```
 
-## Core Concepts
+### Core Concepts
 
-### SqsMessageListenerContainer
+#### SqsMessageListenerContainer
 
 The main container class that manages the complete lifecycle of message consumption for a single queue. Each container:
-
 - Polls an SQS queue using long polling
 - Converts raw messages to typed payloads
 - Invokes your listener with the typed message
@@ -149,9 +142,7 @@ The main container class that manages the complete lifecycle of message consumpt
 - Manages concurrency limits
 - Handles errors via error handlers
 
-### QueueListener Interface
-
-Your message handling logic implements this interface:
+#### QueueListener Interface
 
 ```typescript
 interface QueueListener<T> {
@@ -159,9 +150,7 @@ interface QueueListener<T> {
 }
 ```
 
-### MessageContext
-
-Provides access to message metadata and control methods:
+#### MessageContext
 
 ```typescript
 interface MessageContext {
@@ -175,21 +164,21 @@ interface MessageContext {
 }
 ```
 
-## Configuration Options
+## Configuration & Acknowledgement
 
 ### Container Configuration
 
 ```typescript
 container.configure(options => {
   options
-    .queueNames('my-queue')              // Queue name or full URL
-    .pollTimeout(20)                      // Long polling timeout (seconds)
-    .visibilityTimeout(30)                // Message visibility timeout (seconds)
-    .maxConcurrentMessages(10)            // Max parallel processing
-    .maxMessagesPerPoll(10)               // Batch size (max 10)
-    .autoStartup(true)                    // Start on module init
+    .queueNames('my-queue')
+    .pollTimeout(20)
+    .visibilityTimeout(30)
+    .maxConcurrentMessages(10)
+    .maxMessagesPerPoll(10)
+    .autoStartup(true)
     .acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
-    .messageConverter(customConverter);   // Custom message converter
+    .messageConverter(customConverter);
 });
 ```
 
@@ -199,34 +188,16 @@ container.configure(options => {
 - Deletes message only if `onMessage()` completes successfully
 - If error occurs, message remains in queue for retry
 
-```typescript
-.acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
-```
-
 **MANUAL**
 - Never automatically deletes messages
 - Application must call `context.acknowledge()` explicitly
 - Useful for complex workflows or transactional processing
 
-```typescript
-.acknowledgementMode(AcknowledgementMode.MANUAL)
-
-// In your listener:
-async onMessage(message: OrderEvent, context: MessageContext): Promise<void> {
-  await this.processOrder(message);
-  await context.acknowledge(); // Explicit acknowledgement
-}
-```
-
 **ALWAYS**
 - Always deletes message, even if processing fails
 - Useful for non-critical messages or when using external DLQ
 
-```typescript
-.acknowledgementMode(AcknowledgementMode.ALWAYS)
-```
-
-## Decorator Pattern for Cross-Cutting Concerns
+## Extensibility & Decorators
 
 This package focuses on SQS message consumption and does not include built-in tracing or observability features. Instead, you can implement your own decorators to add cross-cutting concerns like tracing, metrics, or logging.
 
