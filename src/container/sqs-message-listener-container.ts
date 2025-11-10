@@ -13,6 +13,12 @@ import {AcknowledgementMode} from '../types/acknowledgement-mode.enum';
 import {SQSMessage} from '../types/sqs-types';
 import {Semaphore} from './semaphore';
 import {ValidationHandledError} from '../converter/validation-handled-error';
+import {
+    ContextResolver,
+    ResourceProvider,
+    ContextKeyGenerator,
+    ResourceCleanup
+} from '../types/context-resource-types';
 
 /**
  * Main container class that manages the complete lifecycle of message consumption for a single SQS queue.
@@ -25,9 +31,14 @@ import {ValidationHandledError} from '../converter/validation-handled-error';
  * - Manage lifecycle (start/stop)
  * - Handle errors via error handler
  * - Enforce concurrency limits
+ * 
+ * @template TPayload The type of the message payload
+ * @template TContext The type of the context object (defaults to void for backward compatibility)
+ * @template TResources The type of the resources object (defaults to void for backward compatibility)
  *
  * @example
  * ```typescript
+ * // Basic usage without context/resources (backward compatible)
  * const container = new SqsMessageListenerContainer<OrderEvent>(sqsClient);
  *
  * container.configure(options => {
@@ -41,14 +52,29 @@ import {ValidationHandledError} from '../converter/validation-handled-error';
  * container.setId('orderListener');
  * container.setMessageListener(orderListener);
  * container.setErrorHandler(errorHandler);
+ * 
+ * // Advanced usage with context and resources
+ * const container = new SqsMessageListenerContainer<OrderEvent, TenantContext, TenantResources>(sqsClient);
+ * 
+ * container.configure(options => {
+ *   options
+ *     .queueName('order-queue')
+ *     .contextResolver((attributes) => ({
+ *       tenantId: attributes['tenantId']?.StringValue!,
+ *       region: attributes['region']?.StringValue!
+ *     }))
+ *     .resourceProvider(async (context) => ({
+ *       dataSource: await getDataSource(context.tenantId, context.region)
+ *     }));
+ * });
  * ```
  */
 @Injectable()
-export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDestroy {
-    private config: ContainerConfiguration & { messageConverter?: PayloadMessagingConverter<T> };
-    private listener?: QueueListener<T>;
+export class SqsMessageListenerContainer<TPayload, TContext = void, TResources = void> implements OnModuleInit, OnModuleDestroy {
+    private config: ContainerConfiguration & { messageConverter?: PayloadMessagingConverter<TPayload> };
+    private listener?: QueueListener<TPayload, TContext, TResources>;
     private errorHandler?: QueueListenerErrorHandler;
-    private converter?: PayloadMessagingConverter<T>;
+    private converter?: PayloadMessagingConverter<TPayload>;
     private semaphore?: Semaphore;
     private isRunning = false;
     private resolvedQueueUrl?: string;
@@ -56,6 +82,13 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
     private readonly logger: Logger;
     private pollingPromise?: Promise<void>;
     private abortController?: AbortController;
+    
+    // Context and resource management properties
+    private contextResolver?: ContextResolver<TContext>;
+    private resourceProvider?: ResourceProvider<TContext, TResources>;
+    private contextKeyGenerator?: ContextKeyGenerator<TContext>;
+    private resourceCleanup?: ResourceCleanup<TResources>;
+    private resourceCache: Map<string, TResources> = new Map();
 
     constructor(
         private readonly sqsClient: SQSClient,
@@ -95,6 +128,20 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
             this.converter = builtConfig.messageConverter;
         }
 
+        // Extract and store context/resource configuration
+        if ((builtConfig as any).contextResolver) {
+            this.contextResolver = (builtConfig as any).contextResolver;
+        }
+        if ((builtConfig as any).resourceProvider) {
+            this.resourceProvider = (builtConfig as any).resourceProvider;
+        }
+        if ((builtConfig as any).contextKeyGenerator) {
+            this.contextKeyGenerator = (builtConfig as any).contextKeyGenerator;
+        }
+        if ((builtConfig as any).resourceCleanup) {
+            this.resourceCleanup = (builtConfig as any).resourceCleanup;
+        }
+
         // Initialize semaphore with configured concurrency
         this.semaphore = new Semaphore(this.config.maxConcurrentMessages);
     }
@@ -113,7 +160,7 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
      *
      * @param listener QueueListener implementation
      */
-    setMessageListener(listener: QueueListener<T>): void {
+    setMessageListener(listener: QueueListener<TPayload, TContext, TResources>): void {
         this.listener = listener;
     }
 
@@ -155,7 +202,7 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
 
         // Initialize converter if not already done
         if (!this.converter) {
-            this.converter = new JsonPayloadMessagingConverter<T>();
+            this.converter = new JsonPayloadMessagingConverter<TPayload>();
         }
 
         // Initialize the error handler if not already done
@@ -181,7 +228,7 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
 
     /**
      * Stop the container and cease polling.
-     * Waits for in-flight messages to complete.
+     * Waits for in-flight messages to complete and cleans up resources.
      */
     async stop(): Promise<void> {
         if (!this.isRunning) {
@@ -218,6 +265,9 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
             await new Promise(resolve => setTimeout(resolve, 100));
         }
         this.logger.debug(`In-flight messages: ${this.inFlightMessages}`);
+
+        // Clean up cached resources before final shutdown
+        await this.cleanupResources();
 
         this.logger.log(`Stopped container ${this.config.id || 'unnamed'}`);
     }
@@ -330,6 +380,7 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
 
     /**
      * Process a single message.
+     * Orchestrates context resolution, resource provisioning, and message processing.
      */
     private async processMessage(message: SQSMessage): Promise<void> {
         // Acquire semaphore permit
@@ -337,76 +388,31 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
         this.inFlightMessages++;
 
         try {
-            // Create message context before calling converter
-            // This allows converters to acknowledge messages directly when needed
-            const context = new MessageContextImpl(
-                message,
-                this.resolvedQueueUrl!,
-                this.sqsClient,
-                this.logger
-            );
-
-            // Convert message body to typed payload, passing context for validation scenarios
-            const payload = await this.converter!.convert(
-                message.Body!,
-                message.MessageAttributes || {},
-                context
-            );
-
-            // Invoke listener
-            await this.listener!.onMessage(payload, context);
-
-            // Handle acknowledgement based on mode
-            await this.handleAcknowledgement(context, true);
-
-            this.logger.debug(`Successfully processed message ${message.MessageId}`);
-        } catch (error) {
-            // Check if this is a validation error that was already handled
-            // In ACKNOWLEDGE mode: message was already acknowledged by converter
-            // In REJECT mode: message was not acknowledged and will retry
-            // In both cases: skip listener invocation and error handler
-            if (error instanceof ValidationHandledError) {
-                this.logger.debug(
-                    `Validation handled for message ${message.MessageId}, skipping listener invocation`
-                );
-                // Don't invoke error handler, don't modify acknowledgement state
-                // The converter already handled logging and acknowledgement as needed
-                return;
+            // Extract message attributes
+            const attributes = this.extractMessageAttributes(message);
+            
+            // Resolve context (if configured)
+            const context = await this.resolveContext(message, attributes);
+            
+            // Return early if context resolution failed
+            if (context === undefined && this.contextResolver) {
+                return; // Error already handled by handleContextResolutionError
             }
-
-            // Create context for error handler
-            const context = new MessageContextImpl(
-                message,
-                this.resolvedQueueUrl!,
-                this.sqsClient,
-                this.logger
-            );
-
-            // Try to convert payload for the error handler (may fail)
-            let payload: any;
-            try {
-                payload = await this.converter!.convert(
-                    message.Body!,
-                    message.MessageAttributes || {},
-                    context
-                );
-            } catch {
-                payload = message.Body;
+            
+            // Provide resources (if configured)
+            const resources = await this.provideResources(message, context);
+            
+            // Return early if resource provisioning failed (when provider is configured)
+            if (resources === undefined && this.resourceProvider && context !== undefined) {
+                return; // Error already handled by handleResourceProvisioningError
             }
-
-            // Invoke error handler
-            const actualError = error instanceof Error ? error : new Error(String(error));
-            await this.errorHandler!.handleError(actualError, payload, context);
-
-            // Handle acknowledgement based on mode (failure case)
-            await this.handleAcknowledgement(context, false);
-
-            const errorMessage = actualError.message;
-            const errorStack = actualError.stack;
-            this.logger.error(
-                `Error processing message ${message.MessageId}: ${errorMessage}`,
-                errorStack
-            );
+            
+            // Create message context with resolved context and resources
+            const messageContext = this.createMessageContext(message, context, resources);
+            
+            // Process message with context
+            await this.processMessageWithContext(message, messageContext);
+            
         } finally {
             // Release semaphore permit
             this.semaphore!.release();
@@ -415,10 +421,93 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
     }
 
     /**
+     * Process message with fully resolved context.
+     * Handles payload conversion, listener invocation, and error handling.
+     */
+    private async processMessageWithContext(
+        message: SQSMessage,
+        messageContext: MessageContext<TContext, TResources>
+    ): Promise<void> {
+        try {
+            // Convert payload
+            const payload = await this.convertPayload(message, messageContext);
+            
+            // Invoke listener
+            await this.listener!.onMessage(payload, messageContext);
+            
+            // Handle acknowledgement on success
+            await this.handleAcknowledgement(messageContext, true);
+            
+            // Log successful processing
+            this.logger.debug(`Successfully processed message ${message.MessageId}`);
+        } catch (error) {
+            // Handle message processing error
+            await this.handleMessageProcessingError(message, messageContext, error);
+        }
+    }
+
+    /**
+     * Convert message payload using the configured converter.
+     */
+    private async convertPayload(
+        message: SQSMessage,
+        messageContext: MessageContext<TContext, TResources>
+    ): Promise<TPayload> {
+        const attributes = this.extractMessageAttributes(message);
+        return await this.converter!.convert(
+            message.Body!,
+            attributes,
+            messageContext as MessageContext
+        );
+    }
+
+    /**
+     * Handle message processing errors.
+     * Checks for ValidationHandledError, converts payload for error handler,
+     * invokes error handler, and handles acknowledgement.
+     */
+    private async handleMessageProcessingError(
+        message: SQSMessage,
+        messageContext: MessageContext<TContext, TResources>,
+        error: unknown
+    ): Promise<void> {
+        // Check if this is a validation error that was already handled
+        if (error instanceof ValidationHandledError) {
+            this.logger.debug(
+                `Validation handled for message ${message.MessageId}, skipping listener invocation`
+            );
+            return;
+        }
+
+        // Convert error to Error instance
+        const actualError = error instanceof Error ? error : new Error(String(error));
+        
+        // Try to convert payload for error handler (use message body on failure)
+        let payload: any;
+        try {
+            payload = await this.convertPayload(message, messageContext);
+        } catch {
+            payload = message.Body;
+        }
+
+        // Invoke error handler
+        await this.errorHandler!.handleError(actualError, payload, messageContext as MessageContext);
+        
+        // Handle acknowledgement based on mode
+        await this.handleAcknowledgement(messageContext, false);
+
+        // Log error
+        this.logger.error(
+            `Error processing message ${message.MessageId}: ${actualError.message}`,
+            actualError.stack
+        );
+    }
+
+    /**
      * Handle message acknowledgement based on the configured mode.
      */
     private async handleAcknowledgement(
-        context: MessageContext,
+        context: MessageContext<TContext, TResources>,
         success: boolean
     ): Promise<void> {
         const mode = this.config.acknowledgementMode;
@@ -429,5 +518,218 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
             await context.acknowledge();
         }
         // MANUAL mode: never auto-acknowledge
+    }
+
+    /**
+     * Extract message attributes from SQS message.
+     * Returns empty object if attributes are undefined or null.
+     */
+    private extractMessageAttributes(message: SQSMessage): Record<string, any> {
+        return message.MessageAttributes || {};
+    }
+
+    /**
+     * Resolve context from message attributes using the configured context resolver.
+     * Returns undefined if contextResolver is not configured or if resolution fails.
+     */
+    private async resolveContext(
+        message: SQSMessage,
+        attributes: Record<string, any>
+    ): Promise<TContext | undefined> {
+        if (!this.contextResolver) {
+            return undefined;
+        }
+
+        try {
+            return this.contextResolver(attributes);
+        } catch (error) {
+            await this.handleContextResolutionError(message, attributes, error);
+            return undefined;
+        }
+    }
+
+    /**
+     * Handle context resolution errors.
+     * Logs the error, creates a partial message context, invokes the error handler,
+     * and handles acknowledgement based on the configured mode.
+     */
+    private async handleContextResolutionError(
+        message: SQSMessage,
+        attributes: Record<string, any>,
+        error: unknown
+    ): Promise<void> {
+        this.logger.error(
+            `Context resolution failed for message ${message.MessageId}`,
+            { attributes, error }
+        );
+
+        const partialContext = this.createPartialMessageContext(message);
+        const actualError = error instanceof Error ? error : new Error(String(error));
+        
+        await this.errorHandler!.handleError(actualError, message.Body, partialContext as MessageContext);
+        await this.handleAcknowledgement(partialContext, false);
+    }
+
+    /**
+     * Create a message context with resolved context and resources.
+     * Used when both context resolution and resource provisioning succeed.
+     */
+    private createMessageContext(
+        message: SQSMessage,
+        context: TContext | undefined,
+        resources: TResources | undefined
+    ): MessageContext<TContext, TResources> {
+        return new MessageContextImpl<TContext, TResources>(
+            message,
+            this.resolvedQueueUrl!,
+            this.sqsClient,
+            this.logger,
+            context,
+            resources
+        );
+    }
+
+    /**
+     * Create a partial message context without context or resources.
+     * Used when context resolution or resource provisioning fails.
+     */
+    private createPartialMessageContext(message: SQSMessage): MessageContext<TContext, TResources> {
+        return new MessageContextImpl<TContext, TResources>(
+            message,
+            this.resolvedQueueUrl!,
+            this.sqsClient,
+            this.logger,
+            undefined,
+            undefined
+        );
+    }
+
+    /**
+     * Provide resources based on resolved context using the configured resource provider.
+     * Returns undefined if resourceProvider is not configured, context is undefined, or if provisioning fails.
+     */
+    private async provideResources(
+        message: SQSMessage,
+        context: TContext | undefined
+    ): Promise<TResources | undefined> {
+        if (!this.resourceProvider || !context) {
+            return undefined;
+        }
+
+        try {
+            return await this.getOrCreateResources(context);
+        } catch (error) {
+            await this.handleResourceProvisioningError(message, context, error);
+            return undefined;
+        }
+    }
+
+    /**
+     * Get resources from cache or create new ones using the resource provider.
+     * Uses caching to avoid redundant resource initialization for the same context.
+     */
+    private async getOrCreateResources(context: TContext): Promise<TResources> {
+        const cacheKey = this.generateCacheKey(context);
+        
+        let resources = this.resourceCache.get(cacheKey);
+        
+        if (resources) {
+            this.logger.debug(`Resources retrieved from cache for key: ${cacheKey}`);
+            return resources;
+        }
+        
+        this.logger.debug(`Cache miss for key: ${cacheKey}, creating new resources`);
+        resources = await this.resourceProvider!(context);
+        this.resourceCache.set(cacheKey, resources);
+        this.logger.debug(`Resources created and cached for key: ${cacheKey}`);
+        
+        return resources;
+    }
+
+    /**
+     * Generate a cache key from the context object.
+     * Uses custom contextKeyGenerator if configured, otherwise uses JSON.stringify.
+     */
+    private generateCacheKey(context: TContext): string {
+        if (this.contextKeyGenerator) {
+            return this.contextKeyGenerator(context);
+        }
+        return JSON.stringify(context);
+    }
+
+    /**
+     * Handle resource provisioning errors.
+     * Logs the error, creates a message context with context but no resources,
+     * invokes the error handler, and handles acknowledgement based on the configured mode.
+     */
+    private async handleResourceProvisioningError(
+        message: SQSMessage,
+        context: TContext,
+        error: unknown
+    ): Promise<void> {
+        this.logger.error(
+            `Resource provisioning failed for message ${message.MessageId}`,
+            { context, error }
+        );
+
+        const contextWithoutResources = this.createMessageContextWithoutResources(message, context);
+        const actualError = error instanceof Error ? error : new Error(String(error));
+        
+        await this.errorHandler!.handleError(actualError, message.Body, contextWithoutResources as MessageContext);
+        await this.handleAcknowledgement(contextWithoutResources, false);
+    }
+
+    /**
+     * Create a message context with context but no resources.
+     * Used when resource provisioning fails but context was successfully resolved.
+     */
+    private createMessageContextWithoutResources(
+        message: SQSMessage,
+        context: TContext
+    ): MessageContext<TContext, TResources> {
+        return new MessageContextImpl<TContext, TResources>(
+            message,
+            this.resolvedQueueUrl!,
+            this.sqsClient,
+            this.logger,
+            context,
+            undefined
+        );
+    }
+
+    /**
+     * Clean up all cached resources during shutdown.
+     * Calls the configured resourceCleanup function for each cached resource.
+     * Logs errors but does not throw to ensure graceful shutdown.
+     */
+    private async cleanupResources(): Promise<void> {
+        // Check if resourceCleanup is configured and cache is not empty
+        if (!this.resourceCleanup || this.resourceCache.size === 0) {
+            return;
+        }
+
+        // Log cleanup start with cache size
+        this.logger.log(`Cleaning up ${this.resourceCache.size} cached resources`);
+
+        // Create array of cleanup promises for all cached resources
+        const cleanupPromises = Array.from(this.resourceCache.values()).map(
+            async (resources) => {
+                try {
+                    await this.resourceCleanup!(resources);
+                } catch (error) {
+                    // Catch and log errors for individual cleanup failures
+                    this.logger.error('Resource cleanup failed', error);
+                }
+            }
+        );
+
+        // Await all cleanup promises
+        await Promise.all(cleanupPromises);
+
+        // Clear resource cache
+        this.resourceCache.clear();
+
+        // Log cleanup completion
+        this.logger.log('Resource cleanup completed');
     }
 }

@@ -59,6 +59,8 @@ describe('ValidatingPayloadConverter', () => {
             getSystemAttributes: jest.fn().mockReturnValue({}),
             getApproximateReceiveCount: jest.fn().mockReturnValue(1),
             acknowledge: jest.fn().mockResolvedValue(undefined),
+            getContext: jest.fn().mockReturnValue(undefined),
+            getResources: jest.fn().mockReturnValue(undefined),
         };
     });
 

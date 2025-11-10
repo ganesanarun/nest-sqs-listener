@@ -6,13 +6,18 @@ import {Logger} from "@nestjs/common";
 /**
  * Implementation of MessageContext that wraps an SQS message and provides
  * access to message metadata and acknowledgement functionality.
+ * 
+ * @template TContext The type of the context object (defaults to void for backward compatibility)
+ * @template TResources The type of the resources object (defaults to void for backward compatibility)
  */
-export class MessageContextImpl implements MessageContext {
+export class MessageContextImpl<TContext = void, TResources = void> implements MessageContext<TContext, TResources> {
     constructor(
         private readonly message: SQSMessage,
         private readonly queueUrl: string,
         private readonly sqsClient: SQSClient,
-        private readonly logger: Logger
+        private readonly logger: Logger,
+        private readonly context?: TContext,
+        private readonly resources?: TResources
     ) {
     }
 
@@ -66,5 +71,13 @@ export class MessageContextImpl implements MessageContext {
                 error instanceof Error ? error.stack : undefined
             );
         }
+    }
+
+    getContext(): TContext | undefined {
+        return this.context;
+    }
+
+    getResources(): TResources | undefined {
+        return this.resources;
     }
 }

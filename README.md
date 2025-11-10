@@ -32,10 +32,13 @@ This package **abstracts all infrastructure concerns** so your listeners contain
 - 🚀 **Infrastructure abstraction** - Focus on business logic while the package handles all SQS infrastructure concerns
 - 💉 **Full NestJS integration** - Leverage dependency injection and lifecycle hooks for seamless integration
 - 🔒 **Type-safe** - Generic types throughout for compile-time safety and better developer experience
+- � ***Multi-tenant support** - Context-based resource selection for routing messages to tenant-specific databases, API clients, or configurations
 - 🎯 **Flexible acknowledgement** - Choose between ON_SUCCESS, MANUAL, or ALWAYS acknowledgement modes
-- 🔄 **Concurrency control** - Configurable parallel message processing with semaphore-based limits
+- � ***Concurrency control** - Configurable parallel message processing with semaphore-based limits
+- ✅ **Message validation** - Automatic validation using class-validator with configurable failure modes
 - 🛠️ **Highly customizable** - Bring your own message converters, error handlers
-- ✅ **Testable** - All components are injectable and mockable for easy unit and integration testing
+- ⚡ **Resource caching** - Automatic caching and lifecycle management for context-based resources
+- 🧪 **Testable** - All components are injectable and mockable for easy unit and integration testing
 
 ## Installation
 
@@ -619,6 +622,212 @@ container.setMessageListener(withTracing);
 
 See the [advanced example](./examples/advanced) for a complete implementation with OpenTelemetry.
 
+## Multi-Tenant & Context-Based Resource Selection
+
+This package supports sophisticated multi-tenant architectures where different messages are routed to different resources (databases, API clients, configurations) based on message context extracted from SQS message attributes.
+
+### Why Context-Based Resources?
+
+**Common Use Cases:**
+- **Multi-tenant SaaS**: Route messages to tenant-specific databases
+- **Multi-environment**: Use different API endpoints for production/staging/development
+- **Customer-specific processing**: Apply different rate limits, features, or rules per customer
+- **Regional routing**: Connect to region-specific resources
+
+**Benefits:**
+- Automatic resource selection based on message attributes
+- Resource caching for performance (avoid recreating connections)
+- Type-safe context and resource access
+- Proper resource cleanup on shutdown
+- Clean separation of routing logic from business logic
+
+### Basic Example
+
+```typescript
+// 1. Define context extracted from message attributes
+interface TenantContext {
+  tenantId: string;
+  region: string;
+}
+
+// 2. Define resources provided to listener
+interface TenantResources {
+  dataSource: DataSource;
+}
+
+// 3. Configure container with context resolution and resource provisioning
+const container = new SqsMessageListenerContainer<
+  OrderEvent,
+  TenantContext,
+  TenantResources
+>(sqsClient);
+
+container.configure(options => {
+  options
+    .queueName('tenant-orders')
+    // Extract context from message attributes
+    .contextResolver((attributes): TenantContext => {
+      const tenantId = attributes['tenantId']?.StringValue;
+      const region = attributes['region']?.StringValue;
+      
+      if (!tenantId || !region) {
+        throw new Error('Missing tenant attributes');
+      }
+      
+      return { tenantId, region };
+    })
+    // Provide resources based on context (cached automatically)
+    .resourceProvider(async (context: TenantContext): Promise<TenantResources> => {
+      const dataSource = await dataSourceManager.getDataSource(
+        context.tenantId,
+        context.region
+      );
+      return { dataSource };
+    })
+    // Custom cache key for efficient caching
+    .contextKeyGenerator((context: TenantContext) => {
+      return `${context.tenantId}:${context.region}`;
+    })
+    // Cleanup resources on shutdown
+    .resourceCleanup(async (resources: TenantResources) => {
+      await resources.dataSource.destroy();
+    });
+});
+
+// 4. Listener receives typed context and resources
+class OrderListener implements QueueListener<
+  OrderEvent,
+  TenantContext,
+  TenantResources
+> {
+  async onMessage(
+    payload: OrderEvent,
+    context: MessageContext<TenantContext, TenantResources>
+  ): Promise<void> {
+    // Get strongly-typed context and resources
+    const { tenantId, region } = context.getContext()!;
+    const { dataSource } = context.getResources()!;
+    
+    // Use tenant-specific datasource
+    await dataSource.query('INSERT INTO orders ...', [payload]);
+  }
+}
+```
+
+### Configuration Methods
+
+**Context Resolution:**
+```typescript
+.contextResolver((attributes): Context => {
+  // Extract and validate context from message attributes
+  return { key: attributes['key']?.StringValue };
+})
+```
+
+**Resource Provisioning:**
+```typescript
+.resourceProvider(async (context): Promise<Resources> => {
+  // Create or retrieve resources based on context
+  // Resources are automatically cached by context key
+  return { resource: await createResource(context) };
+})
+```
+
+**Cache Key Generation:**
+```typescript
+.contextKeyGenerator((context) => {
+  // Generate efficient cache key (default: JSON.stringify)
+  return `${context.tenant}:${context.region}`;
+})
+```
+
+**Resource Cleanup:**
+```typescript
+.resourceCleanup(async (resources) => {
+  // Called on shutdown for each cached resource
+  await resources.connection.close();
+})
+```
+
+### How It Works
+
+1. **Message Received**: Container receives message from SQS
+2. **Context Resolution**: Extracts context from message attributes using `contextResolver`
+3. **Cache Check**: Generates cache key and checks if resources exist for this context
+4. **Resource Provisioning**: If cache miss, calls `resourceProvider` to create resources
+5. **Cache Storage**: Stores resources in cache for future messages with same context
+6. **Message Processing**: Calls listener with typed payload, context, and resources
+7. **Cleanup**: On shutdown, calls `resourceCleanup` for all cached resources
+
+### Error Handling
+
+**Context Resolution Failure:**
+- Error is logged with message attributes
+- Error handler is invoked
+- Message is not processed
+- Acknowledgement handled based on mode
+
+**Resource Provisioning Failure:**
+- Error is logged with context
+- Error handler is invoked with partial context (no resources)
+- Message is not processed
+- Acknowledgement handled based on mode
+
+### Type Safety
+
+Full TypeScript support with three generic type parameters:
+
+```typescript
+// Container with all three types
+const container = new SqsMessageListenerContainer<
+  PayloadType,      // Message payload
+  ContextType,      // Extracted context
+  ResourcesType     // Provisioned resources
+>(sqsClient);
+
+// Listener must match container types
+class MyListener implements QueueListener<
+  PayloadType,
+  ContextType,
+  ResourcesType
+> {
+  async onMessage(
+    payload: PayloadType,
+    context: MessageContext<ContextType, ResourcesType>
+  ): Promise<void> {
+    const ctx = context.getContext()!;      // ContextType
+    const res = context.getResources()!;    // ResourcesType
+  }
+}
+```
+
+### Examples
+
+The package includes four complete examples demonstrating different patterns:
+
+1. **[Multi-Tenant Datasource](./examples/multi-tenant-datasource)** - Route to tenant-specific databases
+2. **[Environment-Based API Client](./examples/environment-api-client)** - Select API endpoints by environment
+3. **[Customer-Specific Configuration](./examples/customer-config)** - Apply per-customer rate limits and features
+4. **[Resource Caching & Cleanup](./examples/resource-caching)** - Advanced caching patterns and lifecycle management
+
+See [Multi-Tenant Examples](./examples/MULTI_TENANT_EXAMPLES.md) for detailed documentation.
+
+### Backward Compatibility
+
+All multi-tenant features are optional and fully backward compatible:
+
+```typescript
+// Without context/resources (original behavior)
+const container = new SqsMessageListenerContainer<OrderEvent>(sqsClient);
+
+class Listener implements QueueListener<OrderEvent> {
+  async onMessage(payload: OrderEvent, context: MessageContext): Promise<void> {
+    // context.getContext() returns undefined
+    // context.getResources() returns undefined
+  }
+}
+```
+
 ## Best Practices
 
 ### Use Symbols for Dependency Injection Tokens
@@ -828,6 +1037,18 @@ Learn production-ready patterns and sophisticated features.
 - **Advanced validation patterns** with different failure modes
 
 **Perfect for:** Production applications, complex workflows, advanced patterns
+
+### [Multi-Tenant Examples](./examples/MULTI_TENANT_EXAMPLES.md) 🏢
+
+Four complete examples demonstrating context-based resource selection for multi-tenant architectures.
+
+**What you'll learn:**
+- **Multi-tenant datasource selection** - Route to tenant-specific databases
+- **Environment-based API clients** - Select endpoints by environment (prod/staging/dev)
+- **Customer-specific configuration** - Apply per-customer rate limits and features
+- **Resource caching and cleanup** - Advanced lifecycle management patterns
+
+**Perfect for:** Multi-tenant SaaS applications, environment-based routing, per-customer customization
 
 ### [Validation Examples](./examples/VALIDATION_EXAMPLES.md) 📋
 

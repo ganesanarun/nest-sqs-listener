@@ -6,6 +6,12 @@ import {ValidatorOptions} from '../converter/json-payload-converter-options.inte
 import {Logger, Type} from '@nestjs/common';
 import {JsonPayloadMessagingConverter} from '../converter/json-payload-messaging-converter';
 import {ValidatingPayloadConverter} from '../converter/validating-payload-converter';
+import {
+    ContextResolver,
+    ResourceProvider,
+    ContextKeyGenerator,
+    ResourceCleanup
+} from '../types/context-resource-types';
 
 /**
  * Fluent configuration builder for SqsMessageListenerContainer.
@@ -38,6 +44,10 @@ export class ContainerOptions {
     private _enableValidation?: boolean;
     private _validationFailureMode?: ValidationFailureMode;
     private _validatorOptions?: ValidatorOptions;
+    private _contextResolver?: ContextResolver<any>;
+    private _resourceProvider?: ResourceProvider<any, any>;
+    private _contextKeyGenerator?: ContextKeyGenerator<any>;
+    private _resourceCleanup?: ResourceCleanup<any>;
 
     /**
      * Sets the queue name or full queue URL.
@@ -215,6 +225,147 @@ export class ContainerOptions {
     }
 
     /**
+     * Sets the context resolver function for extracting context from message attributes.
+     *
+     * The context resolver is invoked before message payload conversion and provides
+     * a way to extract typed context information (such as tenant ID, environment, region)
+     * from message attributes. This context can then be used to provision resources
+     * and is made available to the message listener.
+     *
+     * @template TContext The type of the context object to be extracted
+     * @param resolver Function to extract context from message attributes
+     * @returns This ContainerOptions instance for chaining
+     *
+     * @example
+     * ```typescript
+     * interface TenantContext {
+     *   tenantId: string;
+     *   region: string;
+     * }
+     *
+     * container.configure(options => {
+     *   options
+     *     .queueName('orders-queue')
+     *     .contextResolver<TenantContext>((attributes) => {
+     *       const tenantId = attributes['tenantId']?.StringValue;
+     *       const region = attributes['region']?.StringValue;
+     *       if (!tenantId || !region) {
+     *         throw new Error('Missing required tenant attributes');
+     *       }
+     *       return { tenantId, region };
+     *     });
+     * });
+     * ```
+     */
+    contextResolver<TContext>(resolver: ContextResolver<TContext>): this {
+        this._contextResolver = resolver;
+        return this;
+    }
+
+    /**
+     * Sets the resource provider function for provisioning context-specific resources.
+     *
+     * The resource provider is invoked after context resolution and is responsible
+     * for provisioning context-specific resources such as database connections,
+     * API clients, or configuration objects. Resources are cached by context key
+     * to avoid redundant initialization for messages with the same context.
+     *
+     * @template TContext The type of the context object
+     * @template TResources The type of the resources object to be provided
+     * @param provider Function to provide resources based on context
+     * @returns This ContainerOptions instance for chaining
+     *
+     * @example
+     * ```typescript
+     * interface TenantResources {
+     *   dataSource: DataSource;
+     * }
+     *
+     * container.configure(options => {
+     *   options
+     *     .queueName('orders-queue')
+     *     .contextResolver<TenantContext>((attributes) => ({ ... }))
+     *     .resourceProvider<TenantContext, TenantResources>(async (context) => {
+     *       const dataSource = await dataSourceManager.getDataSource(
+     *         context.tenantId,
+     *         context.region
+     *       );
+     *       return { dataSource };
+     *     });
+     * });
+     * ```
+     */
+    resourceProvider<TContext, TResources>(
+        provider: ResourceProvider<TContext, TResources>
+    ): this {
+        this._resourceProvider = provider;
+        return this;
+    }
+
+    /**
+     * Sets the context key generator function for creating cache keys from context objects.
+     *
+     * The context key generator is used to create cache keys for resource caching.
+     * By default, the container uses JSON.stringify to generate keys, but a custom
+     * generator can be provided for more efficient or specific key generation.
+     *
+     * @template TContext The type of the context object
+     * @param generator Function to generate cache keys from context
+     * @returns This ContainerOptions instance for chaining
+     *
+     * @example
+     * ```typescript
+     * container.configure(options => {
+     *   options
+     *     .queueName('orders-queue')
+     *     .contextResolver<TenantContext>((attributes) => ({ ... }))
+     *     .resourceProvider<TenantContext, TenantResources>(async (context) => ({ ... }))
+     *     .contextKeyGenerator<TenantContext>((context) => {
+     *       return `${context.tenantId}-${context.region}`;
+     *     });
+     * });
+     * ```
+     */
+    contextKeyGenerator<TContext>(
+        generator: ContextKeyGenerator<TContext>
+    ): this {
+        this._contextKeyGenerator = generator;
+        return this;
+    }
+
+    /**
+     * Sets the resource cleanup function for cleaning up resources during container shutdown.
+     *
+     * The resource cleanup function is invoked during container shutdown for all
+     * cached resources. It should properly dispose of resources such as closing
+     * database connections, releasing file handles, or cleaning up temporary data.
+     * Cleanup errors are logged but do not prevent container shutdown.
+     *
+     * @template TResources The type of the resources object
+     * @param cleanup Function to clean up resources on shutdown
+     * @returns This ContainerOptions instance for chaining
+     *
+     * @example
+     * ```typescript
+     * container.configure(options => {
+     *   options
+     *     .queueName('orders-queue')
+     *     .contextResolver<TenantContext>((attributes) => ({ ... }))
+     *     .resourceProvider<TenantContext, TenantResources>(async (context) => ({ ... }))
+     *     .resourceCleanup<TenantResources>(async (resources) => {
+     *       if (resources.dataSource?.isInitialized) {
+     *         await resources.dataSource.destroy();
+     *       }
+     *     });
+     * });
+     * ```
+     */
+    resourceCleanup<TResources>(cleanup: ResourceCleanup<TResources>): this {
+        this._resourceCleanup = cleanup;
+        return this;
+    }
+
+    /**
      * Builds and returns the complete container configuration.
      *
      * Automatically creates converters based on configuration:
@@ -224,7 +375,14 @@ export class ContainerOptions {
      * @param logger Optional logger instance from the container (to avoid duplicate loggers)
      * @returns Complete ContainerConfiguration object with all settings
      */
-    build(logger?: Logger): ContainerConfiguration & { messageConverter?: PayloadMessagingConverter<any>, maxPollCycles?: number } {
+    build(logger?: Logger): ContainerConfiguration & { 
+        messageConverter?: PayloadMessagingConverter<any>, 
+        maxPollCycles?: number,
+        contextResolver?: ContextResolver<any>,
+        resourceProvider?: ResourceProvider<any, any>,
+        contextKeyGenerator?: ContextKeyGenerator<any>,
+        resourceCleanup?: ResourceCleanup<any>
+    } {
         let messageConverter = this._messageConverter;
         const converterLogger = logger || new Logger('SqsMessageListenerContainer');
 
@@ -267,6 +425,10 @@ export class ContainerOptions {
             acknowledgementMode: this._acknowledgementMode,
             messageConverter: messageConverter,
             maxPollCycles: this._maxPollCycles,
+            contextResolver: this._contextResolver,
+            resourceProvider: this._resourceProvider,
+            contextKeyGenerator: this._contextKeyGenerator,
+            resourceCleanup: this._resourceCleanup,
         };
     }
 }
