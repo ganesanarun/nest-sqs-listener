@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import {MessageValidationError} from '../src/converter/message-validation-error';
-import {IsString, IsNumber, IsPositive, IsEmail, IsNotEmpty, MaxLength, Min, ValidateNested, IsArray, ArrayNotEmpty, validate, ValidationError} from 'class-validator';
+import {IsString, IsNumber, IsPositive, IsEmail, IsNotEmpty, MaxLength, Min, ValidateNested, IsArray, ArrayNotEmpty, validate} from 'class-validator';
 import {Type} from 'class-transformer';
 
 // Test classes with real class-validator decorators
@@ -60,8 +60,32 @@ class Invoice {
 
 describe('MessageValidationError', () => {
     describe('Error Construction', () => {
+        it('should throw ', async () => {
+            // Create an invalid object
+            const invalidOrderItem = Object.assign(new OrderItem(), {});
+            const originalBody = '{}';
+            const targetClass = 'OrderItem';
+            const message = 'Validation failed';
+
+            const validationErrors = await validate(invalidOrderItem);
+            const error = new MessageValidationError(
+                message,
+                validationErrors,
+                originalBody,
+                targetClass
+            );
+
+            expect(error).toBeInstanceOf(Error);
+            expect(error).toBeInstanceOf(MessageValidationError);
+            expect(error.message).toBe(message);
+            expect(error.validationErrors).toBe(validationErrors);
+            expect(error.originalBody).toBe(originalBody);
+            expect(error.targetClass).toBe(targetClass);
+            expect(error.name).toBe('MessageValidationError');
+        });
+
         it('should create error with all properties using real validation errors', async () => {
-            // Create invalid object
+            // Create an invalid object
             const invalidOrder = Object.assign(new OrderEvent(), {
                 orderId: 123, // should be string
                 amount: 100,
@@ -118,7 +142,7 @@ describe('MessageValidationError', () => {
 
     describe('getConstraints Method', () => {
         it('should extract constraints from single validation error using real class-validator', async () => {
-            // Create invalid object with wrong type
+            // Create an invalid object with the wrong type
             const invalidOrder = Object.assign(new OrderEvent(), {
                 orderId: 123, // should be string
                 amount: 100,
@@ -142,7 +166,7 @@ describe('MessageValidationError', () => {
         });
 
         it('should extract constraints from multiple validation errors using real class-validator', async () => {
-            // Create invalid object with multiple errors
+            // Create an invalid object with multiple errors
             const invalidOrder = Object.assign(new OrderEvent(), {
                 orderId: 123, // should be string
                 amount: -50, // should be positive
@@ -275,7 +299,7 @@ describe('MessageValidationError', () => {
         });
 
         it('should validate that items array is not empty using real class-validator', async () => {
-            // Create order with empty items array
+            // Create order with an empty items array
             const invalidOrder = Object.assign(new OrderEvent(), {
                 orderId: 'order-123',
                 amount: 100,
@@ -291,7 +315,7 @@ describe('MessageValidationError', () => {
             );
 
             const constraints = error.getConstraints();
-            // Should have error for empty items array
+            // Should have an error for an empty items array
             const itemsConstraint = constraints.find(c => c.property === 'items');
             expect(itemsConstraint).toBeDefined();
             expect(itemsConstraint!.constraints.length).toBeGreaterThan(0);
@@ -301,7 +325,7 @@ describe('MessageValidationError', () => {
 
     describe('getFormattedErrors Method', () => {
         it('should format single validation error using real class-validator', async () => {
-            // Create invalid object
+            // Create an invalid object
             const invalidOrder = Object.assign(new OrderEvent(), {
                 orderId: 123, // should be string
                 amount: 100,
@@ -323,7 +347,7 @@ describe('MessageValidationError', () => {
         });
 
         it('should format multiple validation errors using real class-validator', async () => {
-            // Create invalid object with multiple errors
+            // Create an invalid object with multiple errors
             const invalidOrder = Object.assign(new OrderEvent(), {
                 orderId: 123, // should be string
                 amount: -50, // should be positive
