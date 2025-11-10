@@ -6,6 +6,7 @@ This example demonstrates the minimal setup required to get started with `@snow-
 
 - Single queue listener configuration
 - ON_SUCCESS acknowledgement mode (automatic)
+- **Automatic message validation using class-validator decorators**
 - Basic business logic separation (listener → service)
 - Simple error handling (default)
 - LocalStack setup for local testing
@@ -26,6 +27,8 @@ This example demonstrates the minimal setup required to get started with `@snow-
 ```bash
 npm install
 ```
+
+This example includes `class-validator` for automatic message validation.
 
 ### 2. Configure Environment
 
@@ -179,9 +182,71 @@ container.configure(options => {
     .acknowledgementMode(AcknowledgementMode.ON_SUCCESS)  // Auto-ack on success
     .maxConcurrentMessages(5)                // Process up to 5 messages concurrently
     .visibilityTimeout(30)                   // Message visibility timeout (seconds)
-    .maxMessagesPerPoll(10);                 // Max messages per poll request
+    .maxMessagesPerPoll(10)                  // Max messages per poll request
+    // Validation configuration
+    .targetClass(OrderCreatedEvent)          // Event class with decorators
+    .enableValidation(true)                  // Enable automatic validation
+    .validatorOptions({
+      whitelist: true,                       // Strip properties without decorators
+      forbidNonWhitelisted: false,           // Allow extra properties (just strip them)
+    });
 });
 ```
+
+## Message Validation
+
+This example demonstrates automatic message validation using `class-validator` decorators. The `OrderCreatedEvent` class defines validation rules:
+
+```typescript
+export class OrderCreatedEvent {
+  @IsString()
+  orderId: string;
+
+  @IsString()
+  customerId: string;
+
+  @IsNumber()
+  @IsPositive()
+  amount: number;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OrderItem)
+  items: OrderItem[];
+}
+
+export class OrderItem {
+  @IsString()
+  productId: string;
+
+  @IsNumber()
+  @Min(1)
+  quantity: number;
+}
+```
+
+**Validation behavior:**
+- Messages are automatically validated before reaching your listener
+- Invalid messages throw errors and are handled by the default error handler
+- With `whitelist: true`, extra properties are stripped from messages
+- Nested objects and arrays are validated recursively
+
+**Testing validation:**
+
+Send an invalid message (negative amount):
+```bash
+aws sqs send-message \
+  --queue-url http://localhost:4566/000000000000/order-events \
+  --message-body '{
+    "orderId": "order-123",
+    "customerId": "customer-456",
+    "amount": -50,
+    "items": [{"productId": "prod-1", "quantity": 2}]
+  }' \
+  --endpoint-url http://localhost:4566
+```
+
+You'll see validation errors in the logs, and the message will be retried.
 
 ## Next Steps
 

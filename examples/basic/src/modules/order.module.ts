@@ -1,6 +1,6 @@
 import {Logger, Module} from '@nestjs/common';
 import {SQSClient} from '@aws-sdk/client-sqs';
-import {AcknowledgementMode, SqsMessageListenerContainer,} from '@snow-tzu/nest-sqs-listener';
+import {AcknowledgementMode, SqsMessageListenerContainer, ValidationFailureMode,} from '@snow-tzu/nest-sqs-listener';
 import {OrderService} from '../services/order.service';
 import {OrderCreatedListener} from '../listeners/order-created.listener';
 import {OrderCreatedEvent} from '../events/order-created.event';
@@ -23,13 +23,21 @@ import {ORDER_CONTAINER, SQS_CLIENT} from '../tokens';
 
                 container.configure(options => {
                     options
-                        .queueNames(process.env.ORDER_QUEUE_NAME || 'order-events')
+                        .queueName(process.env.ORDER_QUEUE_NAME || 'order-events')
                         .pollTimeout(20)
                         .autoStartup(true)
                         .acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
                         .maxConcurrentMessages(5)
                         .visibilityTimeout(30)
-                        .maxMessagesPerPoll(10);
+                        .maxMessagesPerPoll(10)
+                        // Enable validation with class-validator decorators
+                        .targetClass(OrderCreatedEvent)
+                        .enableValidation(true)
+                        .validationFailureMode(ValidationFailureMode.ACKNOWLEDGE)
+                        .validatorOptions({
+                            whitelist: true, // Strip properties without decorators
+                            forbidNonWhitelisted: false, // Allow extra properties (just strip them)
+                        });
                 });
 
                 container.setId('orderCreatedListener');

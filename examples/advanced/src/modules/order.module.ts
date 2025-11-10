@@ -1,6 +1,6 @@
 import {Logger, Module} from '@nestjs/common';
 import {SQSClient} from '@aws-sdk/client-sqs';
-import {AcknowledgementMode, SqsMessageListenerContainer,} from '@snow-tzu/nest-sqs-listener';
+import {AcknowledgementMode, SqsMessageListenerContainer, ValidationFailureMode} from '@snow-tzu/nest-sqs-listener';
 import {OrderService} from '../services/order.service';
 import {OrderCreatedListener} from '../listeners/order-created.listener';
 import {OrderCreatedEvent} from '../events/order-created.event';
@@ -27,17 +27,25 @@ import {ORDER_CONTAINER, ORDER_SQS_CLIENT} from '../tokens';
 
                 container.configure(options => {
                     options
-                        .queueNames(process.env.ORDER_QUEUE_NAME || 'order-events')
+                        .queueName(process.env.ORDER_QUEUE_NAME || 'order-events')
                         .pollTimeout(20)
                         .autoStartup(true)
                         .acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
                         .maxConcurrentMessages(5)
                         .visibilityTimeout(30)
-                        .maxMessagesPerPoll(10);
+                        .maxMessagesPerPoll(10)
+                        // Enable validation with THROW mode - validation errors invoke error handler
+                        .targetClass(OrderCreatedEvent)
+                        .enableValidation(true)
+                        .validationFailureMode(ValidationFailureMode.THROW)
+                        .validatorOptions({
+                            whitelist: true,
+                            forbidNonWhitelisted: true, // Reject messages with unexpected properties
+                        });
                 });
 
                 container.setId('orderCreatedListener');
-
+                container.setErrorHandler(errorHandler);
                 container.setMessageListener(new TracingListener(listener));
 
                 logger.log('Order Created Container configured successfully');

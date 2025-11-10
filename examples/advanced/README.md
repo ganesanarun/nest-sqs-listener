@@ -6,6 +6,8 @@ This advanced example demonstrates sophisticated patterns and features for produ
 
 This example showcases advanced usage patterns including:
 - Multiple queue listeners with different configurations
+- **Advanced message validation with different failure modes**
+- **Custom error handling for validation errors**
 - Listener decorator pattern for adding cross-cutting concerns (tracing)
 - OpenTelemetry distributed tracing implementation
 - Custom error handling with retry logic
@@ -17,8 +19,8 @@ This example showcases advanced usage patterns including:
 ## Features
 
 ### 1. Multiple Queue Listeners
-- **Order Queue**: Processes order creation events with automatic acknowledgement
-- **Notification Queue**: Handles notification events with manual acknowledgement
+- **Order Queue**: Processes order creation events with automatic acknowledgement and THROW validation mode
+- **Notification Queue**: Handles notification events with manual acknowledgement and ACKNOWLEDGE validation mode
 
 ### 2. Listener Decorator Pattern
 The `TracingListener` decorator wraps business logic listeners to add OpenTelemetry tracing without modifying the core business logic. This pattern allows you to:
@@ -38,6 +40,8 @@ Full distributed tracing implementation that:
 ### 4. Custom Error Handling
 Implements intelligent error handling that:
 - Logs detailed error information
+- **Handles validation errors specifically with formatted error output**
+- **Acknowledges invalid messages immediately to prevent infinite retries**
 - Acknowledges messages after max retries to prevent infinite loops
 - Allows natural retry behavior for transient errors
 
@@ -491,6 +495,170 @@ async onMessage(message: NotificationEvent, context: MessageContext): Promise<vo
 - You want messages to retry automatically on errors
 - You don't need fine-grained control over acknowledgement
 
+### Message Validation with Different Failure Modes
+
+This example demonstrates advanced validation patterns with different failure modes for different queues.
+
+#### Order Queue - THROW Mode (with Custom Error Handler)
+
+The order queue uses `ValidationFailureMode.THROW` which throws validation errors and invokes the custom error handler:
+
+```typescript
+container.configure(options => {
+  options
+    .queueNames('order-events')
+    .targetClass(OrderCreatedEvent)
+    .enableValidation(true)
+    .validationFailureMode(ValidationFailureMode.THROW)
+    .validatorOptions({
+      whitelist: true,
+      forbidNonWhitelisted: true, // Reject messages with unexpected properties
+    });
+});
+
+container.setErrorHandler(errorHandler);
+```
+
+**Event class with strict validation:**
+```typescript
+export class OrderCreatedEvent {
+  @IsUUID()
+  orderId: string;
+
+  @IsUUID()
+  customerId: string;
+
+  @IsNumber()
+  @IsPositive()
+  amount: number;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OrderItem)
+  items: OrderItem[];
+}
+```
+
+**Custom error handler detects validation errors:**
+```typescript
+async handleError(error: Error, message: any, context: MessageContext): Promise<void> {
+  if (error instanceof MessageValidationError) {
+    this.logger.error('Validation failed with the following errors:');
+    this.logger.error(error.getFormattedErrors());
+    
+    // Acknowledge invalid messages immediately - they won't become valid on retry
+    this.logger.warn('Acknowledging invalid message to prevent infinite retries');
+    await context.acknowledge();
+    return;
+  }
+  
+  // Handle other errors with retry logic...
+}
+```
+
+**Benefits of THROW mode:**
+- Full control over error handling
+- Can implement custom logic based on error type
+- Can send validation errors to monitoring systems
+- Can route invalid messages to DLQ or special handling queue
+
+#### Notification Queue - ACKNOWLEDGE Mode
+
+The notification queue uses `ValidationFailureMode.ACKNOWLEDGE` which automatically acknowledges invalid messages without invoking the error handler:
+
+```typescript
+container.configure(options => {
+  options
+    .queueNames('notification-events')
+    .targetClass(NotificationEvent)
+    .enableValidation(true)
+    .validationFailureMode(ValidationFailureMode.ACKNOWLEDGE)
+    .validatorOptions({
+      whitelist: true,
+    });
+});
+```
+
+**Event class with validation:**
+```typescript
+export class NotificationEvent {
+  @IsString()
+  @IsNotEmpty()
+  userId: string;
+
+  @IsIn(['email', 'sms', 'push'])
+  type: 'email' | 'sms' | 'push';
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  subject: string;
+
+  @IsString()
+  @IsNotEmpty()
+  message: string;
+}
+```
+
+**Benefits of ACKNOWLEDGE mode:**
+- Invalid messages are automatically removed from queue
+- No error handler overhead
+- Validation errors are logged but don't trigger alerts
+- Useful for non-critical queues where invalid messages can be discarded
+
+#### Validation Failure Mode Comparison
+
+| Mode | Behavior | Error Handler | Use Case |
+|------|----------|---------------|----------|
+| **THROW** | Throws error, invokes error handler | ✅ Invoked | Critical queues, custom error handling, monitoring |
+| **ACKNOWLEDGE** | Logs error, acknowledges message | ❌ Not invoked | Non-critical queues, discard invalid messages |
+| **REJECT** | Logs error, doesn't acknowledge | ❌ Not invoked | Let SQS retry, eventually move to DLQ |
+
+#### Testing Validation
+
+**Send valid order message:**
+```bash
+aws sqs send-message \
+  --queue-url http://localhost:4566/000000000000/order-events \
+  --message-body '{
+    "orderId": "550e8400-e29b-41d4-a716-446655440000",
+    "customerId": "650e8400-e29b-41d4-a716-446655440000",
+    "amount": 99.99,
+    "items": [{"productId": "prod-1", "quantity": 2}]
+  }' \
+  --endpoint-url http://localhost:4566
+```
+
+**Send invalid order message (non-UUID orderId):**
+```bash
+aws sqs send-message \
+  --queue-url http://localhost:4566/000000000000/order-events \
+  --message-body '{
+    "orderId": "invalid-id",
+    "customerId": "650e8400-e29b-41d4-a716-446655440000",
+    "amount": 99.99,
+    "items": [{"productId": "prod-1", "quantity": 2}]
+  }' \
+  --endpoint-url http://localhost:4566
+```
+
+You'll see the custom error handler log validation errors and acknowledge the message.
+
+**Send invalid notification message (invalid type):**
+```bash
+aws sqs send-message \
+  --queue-url http://localhost:4566/000000000000/notification-events \
+  --message-body '{
+    "userId": "user-123",
+    "type": "invalid-type",
+    "subject": "Test",
+    "message": "Hello"
+  }' \
+  --endpoint-url http://localhost:4566
+```
+
+The message will be automatically acknowledged without invoking the error handler.
+
 ### Custom Error Handling
 
 The custom error handler implements intelligent retry logic:
@@ -499,6 +667,17 @@ The custom error handler implements intelligent retry logic:
 async handleError(error: Error, message: any, context: MessageContext): Promise<void> {
   this.logger.error(`Error: ${error.message}`);
   this.logger.error(`Receive count: ${context.getApproximateReceiveCount()}`);
+  
+  // Handle validation errors specifically
+  if (error instanceof MessageValidationError) {
+    this.logger.error('Validation failed with the following errors:');
+    this.logger.error(error.getFormattedErrors());
+    
+    // Acknowledge invalid messages immediately - they won't become valid on retry
+    this.logger.warn('Acknowledging invalid message to prevent infinite retries');
+    await context.acknowledge();
+    return;
+  }
   
   // Acknowledge after max retries to prevent infinite loop
   if (context.getApproximateReceiveCount() > 3) {
@@ -510,10 +689,10 @@ async handleError(error: Error, message: any, context: MessageContext): Promise<
 ```
 
 **Error Handling Strategies:**
+- **Validation errors**: Acknowledge immediately (no point retrying - demonstrated in this example)
 - **Transient errors**: Don't acknowledge, let SQS retry
 - **Permanent errors**: Acknowledge to remove from queue
 - **Max retries exceeded**: Acknowledge and optionally send to DLQ
-- **Validation errors**: Acknowledge immediately (no point retrying)
 
 ## Next Steps
 

@@ -14,11 +14,9 @@ describe('SqsMessageListenerContainer', () => {
         sqsClient = {
             send: jest.fn().mockResolvedValue({Messages: []}),
         } as any;
-
         mockListener = {
             onMessage: jest.fn().mockResolvedValue(undefined),
         };
-
         mockErrorHandler = {
             handleError: jest.fn().mockResolvedValue(undefined),
         };
@@ -34,6 +32,7 @@ describe('SqsMessageListenerContainer', () => {
     describe('Initialization and Configuration', () => {
         it('should accept SQSClient in constructor', () => {
             container = new SqsMessageListenerContainer(sqsClient);
+
             expect(container).toBeDefined();
         });
 
@@ -43,7 +42,7 @@ describe('SqsMessageListenerContainer', () => {
             expect(() => {
                 container.configure(options => {
                     options
-                        .queueNames('test-queue')
+                        .queueName('test-queue')
                         .pollTimeout(15)
                         .maxConcurrentMessages(5);
                 });
@@ -52,10 +51,9 @@ describe('SqsMessageListenerContainer', () => {
 
         it('should apply configuration from callback', () => {
             container = new SqsMessageListenerContainer(sqsClient);
-
             container.configure(options => {
                 options
-                    .queueNames('test-queue')
+                    .queueName('test-queue')
                     .pollTimeout(15)
                     .visibilityTimeout(60)
                     .maxConcurrentMessages(5)
@@ -64,7 +62,6 @@ describe('SqsMessageListenerContainer', () => {
                     .acknowledgementMode(AcknowledgementMode.MANUAL);
             });
 
-            // Configuration is applied internally - we'll verify through behavior in other tests
             expect(container).toBeDefined();
         });
 
@@ -94,13 +91,10 @@ describe('SqsMessageListenerContainer', () => {
 
         it('should apply default configuration values', () => {
             container = new SqsMessageListenerContainer(sqsClient);
-
             container.configure(options => {
-                options.queueNames('test-queue');
-                // Not setting other options - should use defaults
+                options.queueName('test-queue');
             });
 
-            // Defaults are applied internally
             expect(container).toBeDefined();
         });
     });
@@ -109,15 +103,13 @@ describe('SqsMessageListenerContainer', () => {
         it('should return URL unchanged if already a URL', async () => {
             container = new SqsMessageListenerContainer(sqsClient);
             const fullUrl = 'https://sqs.us-east-1.amazonaws.com/123456789/test-queue';
-
             container.configure(options => {
-                options.queueNames(fullUrl).autoStartup(false);
+                options.queueName(fullUrl).autoStartup(false);
             });
             container.setMessageListener(mockListener);
 
             await container.start();
 
-            // Should not call GetQueueUrl since it's already a URL
             expect(sqsClient.send).not.toHaveBeenCalledWith(
                 expect.objectContaining({constructor: {name: 'GetQueueUrlCommand'}})
             );

@@ -2,45 +2,59 @@ import {AcknowledgementMode, ContainerOptions, PayloadMessagingConverter} from '
 
 describe('ContainerOptions', () => {
     describe('fluent API chaining', () => {
-        it('should return this for chaining on queueNames()', () => {
+        it('should return this for chaining on queueName()', () => {
             const options = new ContainerOptions();
-            const result = options.queueNames('test-queue');
+
+            const result = options.queueName('test-queue');
+
             expect(result).toBe(options);
         });
 
         it('should return this for chaining on pollTimeout()', () => {
             const options = new ContainerOptions();
+
             const result = options.pollTimeout(30);
+
             expect(result).toBe(options);
         });
 
         it('should return this for chaining on visibilityTimeout()', () => {
             const options = new ContainerOptions();
+
             const result = options.visibilityTimeout(60);
+
             expect(result).toBe(options);
         });
 
         it('should return this for chaining on maxConcurrentMessages()', () => {
             const options = new ContainerOptions();
+
             const result = options.maxConcurrentMessages(5);
+
             expect(result).toBe(options);
         });
 
         it('should return this for chaining on maxMessagesPerPoll()', () => {
             const options = new ContainerOptions();
+
             const result = options.maxMessagesPerPoll(10);
+
             expect(result).toBe(options);
         });
 
         it('should return this for chaining on autoStartup()', () => {
             const options = new ContainerOptions();
+
             const result = options.autoStartup(false);
+
             expect(result).toBe(options);
         });
 
         it('should return this for chaining on acknowledgementMode()', () => {
             const options = new ContainerOptions();
+
             const result = options.acknowledgementMode(AcknowledgementMode.MANUAL);
+
             expect(result).toBe(options);
         });
 
@@ -49,14 +63,17 @@ describe('ContainerOptions', () => {
             const converter: PayloadMessagingConverter<any> = {
                 convert: (body: string) => JSON.parse(body),
             };
+
             const result = options.messageConverter(converter);
+
             expect(result).toBe(options);
         });
 
         it('should support method chaining', () => {
             const options = new ContainerOptions();
+
             const result = options
-                .queueNames('test-queue')
+                .queueName('test-queue')
                 .pollTimeout(30)
                 .visibilityTimeout(60)
                 .maxConcurrentMessages(5)
@@ -71,9 +88,10 @@ describe('ContainerOptions', () => {
     describe('configuration setters', () => {
         it('should set queue name', () => {
             const options = new ContainerOptions();
-            options.queueNames('my-queue');
+            options.queueName('my-queue');
 
             const config = options.build();
+
             expect(config.queueName).toBe('my-queue');
         });
 
@@ -82,6 +100,7 @@ describe('ContainerOptions', () => {
             options.pollTimeout(25);
 
             const config = options.build();
+
             expect(config.pollTimeout).toBe(25);
         });
 
@@ -90,6 +109,7 @@ describe('ContainerOptions', () => {
             options.visibilityTimeout(45);
 
             const config = options.build();
+
             expect(config.visibilityTimeout).toBe(45);
         });
 
@@ -98,6 +118,7 @@ describe('ContainerOptions', () => {
             options.maxConcurrentMessages(15);
 
             const config = options.build();
+
             expect(config.maxConcurrentMessages).toBe(15);
         });
 
@@ -106,6 +127,7 @@ describe('ContainerOptions', () => {
             options.maxMessagesPerPoll(5);
 
             const config = options.build();
+
             expect(config.maxMessagesPerPoll).toBe(5);
         });
 
@@ -114,6 +136,7 @@ describe('ContainerOptions', () => {
             options.autoStartup(false);
 
             const config = options.build();
+
             expect(config.autoStartup).toBe(false);
         });
 
@@ -122,6 +145,7 @@ describe('ContainerOptions', () => {
             options.acknowledgementMode(AcknowledgementMode.ALWAYS);
 
             const config = options.build();
+
             expect(config.acknowledgementMode).toBe(AcknowledgementMode.ALWAYS);
         });
 
@@ -133,6 +157,7 @@ describe('ContainerOptions', () => {
             options.messageConverter(converter);
 
             const config = options.build();
+
             expect(config.messageConverter).toBe(converter);
         });
     });
@@ -140,7 +165,7 @@ describe('ContainerOptions', () => {
     describe('build() method', () => {
         it('should return complete configuration object with defaults', () => {
             const options = new ContainerOptions();
-            options.queueNames('test-queue');
+            options.queueName('test-queue');
 
             const config = options.build();
 
@@ -162,9 +187,8 @@ describe('ContainerOptions', () => {
             const converter: PayloadMessagingConverter<any> = {
                 convert: (body: string) => JSON.parse(body),
             };
-
             options
-                .queueNames('custom-queue')
+                .queueName('custom-queue')
                 .pollTimeout(15)
                 .visibilityTimeout(90)
                 .maxConcurrentMessages(20)
@@ -190,68 +214,73 @@ describe('ContainerOptions', () => {
 
         it('should return configuration with partial custom values and defaults', () => {
             const options = new ContainerOptions();
-
             options
-                .queueNames('partial-queue')
+                .queueName('partial-queue')
                 .maxConcurrentMessages(25);
 
             const config = options.build();
 
             expect(config.queueName).toBe('partial-queue');
             expect(config.maxConcurrentMessages).toBe(25);
-            expect(config.pollTimeout).toBe(20); // default
-            expect(config.visibilityTimeout).toBe(30); // default
-            expect(config.autoStartup).toBe(true); // default
-            expect(config.acknowledgementMode).toBe(AcknowledgementMode.ON_SUCCESS); // default
+            expect(config.pollTimeout).toBe(20);
+            expect(config.visibilityTimeout).toBe(30);
+            expect(config.autoStartup).toBe(true);
+            expect(config.acknowledgementMode).toBe(AcknowledgementMode.ON_SUCCESS);
         });
     });
 
     describe('default values', () => {
         it('should use default pollTimeout of 20', () => {
             const options = new ContainerOptions();
-            options.queueNames('test-queue');
+            options.queueName('test-queue');
 
             const config = options.build();
+
             expect(config.pollTimeout).toBe(20);
         });
 
         it('should use default visibilityTimeout of 30', () => {
             const options = new ContainerOptions();
-            options.queueNames('test-queue');
+            options.queueName('test-queue');
 
             const config = options.build();
+
             expect(config.visibilityTimeout).toBe(30);
         });
 
         it('should use default maxConcurrentMessages of 10', () => {
             const options = new ContainerOptions();
-            options.queueNames('test-queue');
+            options.queueName('test-queue');
 
             const config = options.build();
+
             expect(config.maxConcurrentMessages).toBe(10);
         });
 
         it('should use default maxMessagesPerPoll of 10', () => {
             const options = new ContainerOptions();
-            options.queueNames('test-queue');
+            options.queueName('test-queue');
 
             const config = options.build();
+
             expect(config.maxMessagesPerPoll).toBe(10);
         });
 
         it('should use default autoStartup of true', () => {
             const options = new ContainerOptions();
-            options.queueNames('test-queue');
+            options.queueName('test-queue');
 
             const config = options.build();
+
             expect(config.autoStartup).toBe(true);
         });
 
         it('should use default acknowledgementMode of ON_SUCCESS', () => {
             const options = new ContainerOptions();
-            options.queueNames('test-queue');
+            options.queueName('test-queue');
 
             const config = options.build();
+
             expect(config.acknowledgementMode).toBe(AcknowledgementMode.ON_SUCCESS);
         });
     });

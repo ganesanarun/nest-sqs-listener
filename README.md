@@ -1,31 +1,31 @@
 # NestJS SQS Listener
 
+[![npm version](https://img.shields.io/npm/v/@snow-tzu/nest-sqs-listener.svg)](https://www.npmjs.com/package/@snow-tzu/nest-sqs-listener) [![build](https://github.com/ganesanarun/nest-sqs-listener/actions/workflows/build.yml/badge.svg)](https://github.com/ganesanarun/nest-sqs-listener/actions/workflows/build.yml)
+
 A flexible, type-safe NestJS package for consuming messages from AWS SQS queues using a container-based architecture. This package provides programmatic configuration of message consumers with full control over polling, error handling, acknowledgement modes, and message processing lifecycle.
+
+![SQS Listener](docs/images/hero.png)
 
 ## Why This Package?
 
 This package **abstracts all infrastructure concerns** so your listeners contain **only business logic**. No more mixing AWS SDK calls, polling loops, error handling, and acknowledgement logic with your domain code.
 
-**What you write:**
-```typescript
-@Injectable()
-export class OrderCreatedListener implements QueueListener<OrderCreatedEvent> {
-  constructor(private readonly orderService: OrderService) {}
-  
-  async onMessage(message: OrderCreatedEvent, context: MessageContext): Promise<void> {
-    await this.orderService.processNewOrder(message);  // Pure business logic
-  }
-}
-```
+## Comparison
 
-**What the package handles for you:**
-- ✅ SQS polling with long polling optimization
-- ✅ Message deserialization and type conversion
-- ✅ Concurrency control and backpressure
-- ✅ Error handling and retry logic
-- ✅ Message acknowledgement (delete from queue)
-- ✅ Distributed tracing and observability
-- ✅ Graceful shutdown and lifecycle management
+| Capability              | AWS SDK (raw)    | bbc/sqs-consumer | @ssut/nestjs-sqs | @snow-tzu/nest-sqs-listener |
+|-------------------------|------------------|------------------|------------------|-----------------------------|
+| Listener Payload        | Raw JSON         | Raw JSON         | Raw SQS Message  | Strong Domain Event         |
+| Parsing                 | Manual           | Manual           | Manual           | Automatic via converter     |
+| Type Safety             | ❌ None          | ❌ None          | ⚠️ Weak          | ✅ Strong                   |
+| NestJS DI Integration   | ❌ No            | ❌ No            | ✅ Partial       | ✅ Full                     |
+| Architecture Separation | ❌ Poor          | ❌ Poor          | ⚠️ Partial       | ✅ Clean                    |
+| Decorator-Friendly      | ❌ No            | ❌ No            | ❌ No            | ✅ Yes                      |
+| Ack Modes               | Manual only      | Auto only        | Auto only        | ON_SUCCESS / ALWAYS / MANUAL|
+| Centralized Errors      | ❌ No            | ⚠️ Limited       | ❌ No            | ✅ Yes                      |
+| Custom Converters       | ❌ No            | ❌ No            | ❌ No            | ✅ Yes                      |
+| Concurrency Control     | Manual           | ✅ Yes           | ✅ Yes           | ✅ Yes                      |
+| Testability             | Poor             | Hard             | Limited          | ✅ Excellent                |
+| Extensibility           | Low              | Low              | Low              | High                        |
 
 ## Features
 
@@ -43,7 +43,17 @@ export class OrderCreatedListener implements QueueListener<OrderCreatedEvent> {
 npm install @snow-tzu/nest-sqs-listener @aws-sdk/client-sqs
 ```
 
-## Quick Start
+### Optional: Validation Support
+
+For automatic message validation using decorators, install class-validator as a peer dependency:
+
+```bash
+npm install class-validator class-transformer
+```
+
+Note: class-transformer is already used internally for type conversion, but you may need to install it explicitly if not already in your project.
+
+## Getting Started
 
 ### 1. Configure SQSClient as a provider
 
@@ -85,8 +95,6 @@ export class OrderCreatedEvent {
 @Injectable()
 export class OrderCreatedListener implements QueueListener<OrderCreatedEvent> {
   constructor(private readonly orderService: OrderService) {}
-  
-  // Your listener contains ONLY business logic - no infrastructure code!
   async onMessage(message: OrderCreatedEvent, context: MessageContext): Promise<void> {
     await this.orderService.processNewOrder(message);
   }
@@ -111,22 +119,18 @@ import { SQSClient } from '@aws-sdk/client-sqs';
         listener: OrderCreatedListener,
         sqsClient: SQSClient
       ) => {
-        // All infrastructure configuration is isolated here
         const container = new SqsMessageListenerContainer<OrderCreatedEvent>(sqsClient);
-        
         container.configure(options => {
           options
-            .queueNames('order-created-queue')
+            .queueName('order-created-queue')
             .pollTimeout(20)
             .autoStartup(true)
             .acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
             .maxConcurrentMessages(10)
             .visibilityTimeout(30);
         });
-        
         container.setId('orderCreatedListener');
         container.setMessageListener(listener);
-        
         return container;
       },
       inject: [OrderCreatedListener, 'SQS_CLIENT']
@@ -136,22 +140,20 @@ import { SQSClient } from '@aws-sdk/client-sqs';
 export class OrderModule {}
 ```
 
-## Core Concepts
+### Core Concepts
 
-### SqsMessageListenerContainer
+#### SqsMessageListenerContainer
 
 The main container class that manages the complete lifecycle of message consumption for a single queue. Each container:
-
 - Polls an SQS queue using long polling
 - Converts raw messages to typed payloads
+- Validates messages (optional, using class-validator)
 - Invokes your listener with the typed message
 - Handles acknowledgement based on configured mode
 - Manages concurrency limits
 - Handles errors via error handlers
 
-### QueueListener Interface
-
-Your message handling logic implements this interface:
+#### QueueListener Interface
 
 ```typescript
 interface QueueListener<T> {
@@ -159,9 +161,7 @@ interface QueueListener<T> {
 }
 ```
 
-### MessageContext
-
-Provides access to message metadata and control methods:
+#### MessageContext
 
 ```typescript
 interface MessageContext {
@@ -175,23 +175,313 @@ interface MessageContext {
 }
 ```
 
-## Configuration Options
+## Message Validation
+
+This package integrates seamlessly with [class-validator](https://github.com/typestack/class-validator) to automatically validate incoming SQS messages against your business rules. When enabled, messages are validated before reaching your listener, ensuring your business logic only processes valid data.
+
+### Why Validation?
+
+- **Data Integrity**: Ensure messages meet your business rules before processing
+- **Early Error Detection**: Catch invalid messages before they cause runtime errors
+- **Clear Error Messages**: Get detailed validation failures for debugging
+- **Flexible Error Handling**: Choose how to handle invalid messages (throw, acknowledge, or reject)
+- **Type Safety**: Leverage TypeScript decorators for compile-time and runtime validation
+
+### Basic Validation Example
+
+#### 1. Define your event class with validation decorators
+
+```typescript
+import { IsString, IsNumber, IsPositive, IsEmail, Min, Max } from 'class-validator';
+
+export class OrderCreatedEvent {
+  @IsString()
+  orderId: string;
+
+  @IsString()
+  customerId: string;
+
+  @IsEmail()
+  customerEmail: string;
+
+  @IsNumber()
+  @IsPositive()
+  amount: number;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  discountPercent: number;
+}
+```
+
+#### 2. Enable validation in your container configuration
+
+```typescript
+import { ValidationFailureMode } from '@snow-tzu/nest-sqs-listener';
+
+container.configure(options => {
+  options
+    .queueName('order-created-queue')
+    .targetClass(OrderCreatedEvent)
+    .enableValidation(true)
+    .validationFailureMode(ValidationFailureMode.THROW)
+    .validatorOptions({
+      whitelist: true,              // Strip non-decorated properties
+      forbidNonWhitelisted: true,   // Reject messages with unexpected properties
+    });
+});
+```
+
+#### 3. Your listener receives only validated messages
+
+```typescript
+@Injectable()
+export class OrderCreatedListener implements QueueListener<OrderCreatedEvent> {
+  async onMessage(message: OrderCreatedEvent, context: MessageContext): Promise<void> {
+    // message is guaranteed to be valid - no need for manual validation!
+    await this.orderService.processOrder(message);
+  }
+}
+```
+
+### Validation Failure Modes
+
+Control what happens when a message fails validation:
+
+#### THROW (Default)
+
+Throws an error and invokes your error handler. The message remains in the queue for retry.
+
+```typescript
+.validationFailureMode(ValidationFailureMode.THROW)
+```
+
+**Use when:**
+- You want to handle validation errors in your error handler
+- Invalid messages might become valid after a system fix
+- You want validation errors to follow your standard error handling flow
+
+#### ACKNOWLEDGE
+
+Logs the validation error and immediately removes the message from the queue. Your listener is never invoked.
+
+```typescript
+.validationFailureMode(ValidationFailureMode.ACKNOWLEDGE)
+```
+
+**Use when:**
+- Invalid messages will never become valid (bad data from source)
+- You want to discard invalid messages to prevent queue blocking
+- You're monitoring logs for validation failures
+
+#### REJECT
+
+Logs the validation error but doesn't acknowledge the message. The message will retry and eventually move to your dead-letter queue.
+
+```typescript
+.validationFailureMode(ValidationFailureMode.REJECT)
+```
+
+**Use when:**
+- You want invalid messages to go to a dead-letter queue for analysis
+- You don't want to invoke error handler overhead for validation failures
+- You're using a separate process to handle DLQ messages
+
+### Validation Options
+
+Pass any [class-validator ValidatorOptions](https://github.com/typestack/class-validator#passing-options) to customize validation behavior:
+
+```typescript
+container.configure(options => {
+  options
+    .targetClass(OrderCreatedEvent)
+    .enableValidation(true)
+    .validatorOptions({
+      skipMissingProperties: false,    // Validate all properties
+      whitelist: true,                 // Strip properties without decorators
+      forbidNonWhitelisted: true,      // Throw error for unexpected properties
+      forbidUnknownValues: true,       // Throw error for unknown objects
+      groups: ['create'],              // Only validate 'create' group
+      dismissDefaultMessages: false,   // Include default error messages
+      validationError: {
+        target: false,                 // Don't include target in error
+        value: true,                   // Include value in error
+      },
+    });
+});
+```
+
+### Nested Object Validation
+
+Validate complex nested structures using `@ValidateNested()` and `@Type()`:
+
+```typescript
+import { IsString, IsNumber, IsPositive, ValidateNested, IsArray } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class OrderItem {
+  @IsString()
+  productId: string;
+
+  @IsNumber()
+  @IsPositive()
+  quantity: number;
+
+  @IsNumber()
+  @IsPositive()
+  price: number;
+}
+
+export class OrderCreatedEvent {
+  @IsString()
+  orderId: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OrderItem)
+  items: OrderItem[];
+
+  @IsNumber()
+  @IsPositive()
+  totalAmount: number;
+}
+```
+
+### Validation with Custom Converters
+
+If you're using a custom message converter (XML, Protobuf, etc.), you can still add validation using the `ValidatingPayloadConverter` decorator:
+
+```typescript
+import { ValidatingPayloadConverter, ValidationFailureMode } from '@snow-tzu/nest-sqs-listener';
+
+// Your custom converter
+class XmlOrderConverter implements PayloadMessagingConverter<OrderCreatedEvent> {
+  convert(body: string): OrderCreatedEvent {
+    return this.parseXmlToOrder(body);
+  }
+}
+
+// Wrap with validation
+const xmlConverter = new XmlOrderConverter();
+const validatingConverter = new ValidatingPayloadConverter(
+  xmlConverter,
+  OrderCreatedEvent,
+  {
+    enableValidation: true,
+    validationFailureMode: ValidationFailureMode.THROW,
+    validatorOptions: { whitelist: true }
+  },
+  logger  // Optional logger for ACKNOWLEDGE/REJECT modes
+);
+
+container.configure(options => {
+  options
+    .queueName('order-queue')
+    .messageConverter(validatingConverter);
+});
+```
+
+**How it works:**
+1. Your custom converter transforms the message (XML → object)
+2. ValidatingPayloadConverter ensures it's a class instance
+3. class-validator validates the instance
+4. Your listener receives the validated message
+
+This pattern works with any converter format: XML, Protobuf, Avro, CSV, etc.
+
+### Configuration Examples
+
+#### Simple validation with defaults
+
+```typescript
+container.configure(options => {
+  options
+    .queueName('order-queue')
+    .targetClass(OrderCreatedEvent)
+    .enableValidation(true);
+  // Uses THROW mode by default
+});
+```
+
+#### Strict validation with whitelist
+
+```typescript
+container.configure(options => {
+  options
+    .queueName('order-queue')
+    .targetClass(OrderCreatedEvent)
+    .enableValidation(true)
+    .validationFailureMode(ValidationFailureMode.ACKNOWLEDGE)
+    .validatorOptions({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
+});
+```
+
+#### Validation with custom converter (automatic wrapping)
+
+```typescript
+const customConverter = new XmlOrderConverter();
+
+container.configure(options => {
+  options
+    .queueName('order-queue')
+    .messageConverter(customConverter)
+    .targetClass(OrderCreatedEvent)
+    .enableValidation(true)
+    .validationFailureMode(ValidationFailureMode.REJECT);
+  // Container automatically wraps customConverter with ValidatingPayloadConverter
+});
+```
+
+### Graceful Degradation
+
+Validation is designed to fail gracefully:
+
+- **class-validator not installed**: Validation is skipped, messages are processed normally
+- **No decorators on class**: Validation passes, messages are processed normally
+- **Validation explicitly disabled**: Validation is skipped entirely
+
+This ensures your application continues to work even if validation dependencies are missing.
+
+## Configuration & Acknowledgement
 
 ### Container Configuration
 
 ```typescript
 container.configure(options => {
   options
-    .queueNames('my-queue')              // Queue name or full URL
-    .pollTimeout(20)                      // Long polling timeout (seconds)
-    .visibilityTimeout(30)                // Message visibility timeout (seconds)
-    .maxConcurrentMessages(10)            // Max parallel processing
-    .maxMessagesPerPoll(10)               // Batch size (max 10)
-    .autoStartup(true)                    // Start on module init
+    .queueName('my-queue')
+    .pollTimeout(20)
+    .visibilityTimeout(30)
+    .maxConcurrentMessages(10)
+    .maxMessagesPerPoll(10)
+    .autoStartup(true)
     .acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
-    .messageConverter(customConverter);   // Custom message converter
+    .messageConverter(customConverter)
+    // Validation options
+    .targetClass(MyEventClass)
+    .enableValidation(true)
+    .validationFailureMode(ValidationFailureMode.THROW)
+    .validatorOptions({ whitelist: true });
 });
 ```
+
+**Configuration Methods:**
+- `queueName(name: string)` - Queue name to consume from
+- `pollTimeout(seconds: number)` - Long polling timeout (0-20 seconds)
+- `visibilityTimeout(seconds: number)` - Message visibility timeout
+- `maxConcurrentMessages(count: number)` - Maximum parallel message processing
+- `maxMessagesPerPoll(count: number)` - Maximum messages per poll (1-10)
+- `autoStartup(enabled: boolean)` - Start automatically on application startup
+- `acknowledgementMode(mode: AcknowledgementMode)` - Message acknowledgement behavior
+- `messageConverter(converter: PayloadMessagingConverter<T>)` - Custom message converter
+- `targetClass(type: Type<T>)` - Target class for transformation and validation
+- `enableValidation(enabled: boolean)` - Enable class-validator validation
+- `validationFailureMode(mode: ValidationFailureMode)` - Validation failure behavior
+- `validatorOptions(options: ValidatorOptions)` - class-validator options
 
 ### Acknowledgement Modes
 
@@ -199,34 +489,16 @@ container.configure(options => {
 - Deletes message only if `onMessage()` completes successfully
 - If error occurs, message remains in queue for retry
 
-```typescript
-.acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
-```
-
 **MANUAL**
 - Never automatically deletes messages
 - Application must call `context.acknowledge()` explicitly
 - Useful for complex workflows or transactional processing
 
-```typescript
-.acknowledgementMode(AcknowledgementMode.MANUAL)
-
-// In your listener:
-async onMessage(message: OrderEvent, context: MessageContext): Promise<void> {
-  await this.processOrder(message);
-  await context.acknowledge(); // Explicit acknowledgement
-}
-```
-
 **ALWAYS**
 - Always deletes message, even if processing fails
 - Useful for non-critical messages or when using external DLQ
 
-```typescript
-.acknowledgementMode(AcknowledgementMode.ALWAYS)
-```
-
-## Decorator Pattern for Cross-Cutting Concerns
+## Extensibility & Decorators
 
 This package focuses on SQS message consumption and does not include built-in tracing or observability features. Instead, you can implement your own decorators to add cross-cutting concerns like tracing, metrics, or logging.
 
@@ -499,7 +771,7 @@ Configure multiple containers for different queues and regions:
       provide: 'US_ORDER_CONTAINER',
       useFactory: (listener, sqsClient) => {
         const container = new SqsMessageListenerContainer<OrderEvent>(sqsClient);
-        container.configure(options => options.queueNames('us-orders'));
+        container.configure(options => options.queueName('us-orders'));
         container.setId('usOrderListener');
         container.setMessageListener(listener);
         return container;
@@ -512,7 +784,7 @@ Configure multiple containers for different queues and regions:
       provide: 'EU_ORDER_CONTAINER',
       useFactory: (listener, sqsClient) => {
         const container = new SqsMessageListenerContainer<OrderEvent>(sqsClient);
-        container.configure(options => options.queueNames('eu-orders'));
+        container.configure(options => options.queueName('eu-orders'));
         container.setId('euOrderListener');
         container.setMessageListener(listener);
         return container;
@@ -536,6 +808,7 @@ Get started quickly with a minimal setup showing core functionality.
 - Single queue listener configuration
 - Automatic acknowledgement (ON_SUCCESS mode)
 - Basic business logic separation
+- Message validation with class-validator
 - LocalStack setup for local testing
 
 **Perfect for:** First-time users, simple use cases, learning the basics
@@ -552,8 +825,23 @@ Learn production-ready patterns and sophisticated features.
 - **Multiple queue listeners** with different configurations
 - **Multiple AWS account connections** using separate SQS clients
 - **Symbol-based dependency injection** for type safety
+- **Advanced validation patterns** with different failure modes
 
 **Perfect for:** Production applications, complex workflows, advanced patterns
+
+### [Validation Examples](./examples/VALIDATION_EXAMPLES.md) 📋
+
+Comprehensive guide to message validation with class-validator.
+
+**What you'll learn:**
+- Basic validation setup with decorators
+- Three validation failure modes (THROW, ACKNOWLEDGE, REJECT)
+- Nested object and array validation
+- Custom validators and conditional validation
+- Handling validation errors in error handlers
+- Testing validation with invalid messages
+
+**Perfect for:** Understanding validation features, implementing data integrity checks
 
 ### Running Examples Locally
 
@@ -646,7 +934,7 @@ describe('SqsMessageListenerContainer Integration', () => {
     container = new SqsMessageListenerContainer(new SQSClient({}));
     container.configure(options => {
       options
-        .queueNames('test-queue')
+        .queueName('test-queue')
         .autoStartup(false);
     });
     container.setMessageListener(listener);
@@ -754,12 +1042,63 @@ constructor(sqsClient: SQSClient)
 
 #### JsonPayloadMessagingConverter<T>
 
-Default JSON message converter.
+Default JSON message converter with optional validation support.
 
 **Constructor:**
 ```typescript
-constructor(targetClass?: Type<T>)
+constructor(
+  targetClass?: Type<T>,
+  options?: JsonPayloadConverterOptions,
+  logger?: Logger
+)
 ```
+
+**Options:**
+```typescript
+interface JsonPayloadConverterOptions {
+  enableValidation?: boolean;
+  validationFailureMode?: ValidationFailureMode;
+  validatorOptions?: ValidatorOptions;
+}
+```
+
+#### ValidatingPayloadConverter<T>
+
+Decorator that wraps any PayloadMessagingConverter to add validation capabilities.
+
+**Constructor:**
+```typescript
+constructor(
+  innerConverter: PayloadMessagingConverter<T>,
+  targetClass: Type<T>,
+  options?: JsonPayloadConverterOptions,
+  logger?: Logger
+)
+```
+
+**Usage:**
+```typescript
+const xmlConverter = new XmlPayloadConverter();
+const validatingConverter = new ValidatingPayloadConverter(
+  xmlConverter,
+  OrderCreatedEvent,
+  { enableValidation: true }
+);
+```
+
+#### MessageValidationError
+
+Error thrown when message validation fails (in THROW mode).
+
+**Properties:**
+- `message: string` - Human-readable error summary
+- `validationErrors: ValidationError[]` - Array of class-validator errors
+- `originalBody: string` - Raw message body for debugging
+- `targetClass: string` - Class name that failed validation
+
+**Methods:**
+- `getConstraints()` - Get all constraint failures as flat array
+- `getFormattedErrors()` - Get formatted error messages
 
 #### DefaultQueueListenerErrorHandler
 
@@ -806,9 +1145,15 @@ interface QueueListenerErrorHandler {
 
 ```typescript
 interface PayloadMessagingConverter<T> {
-  convert(body: string, attributes: SQSMessageAttributes): Promise<T> | T;
+  convert(
+    body: string, 
+    attributes: SQSMessageAttributes,
+    context?: MessageContext
+  ): Promise<T> | T;
 }
 ```
+
+Note: The `context` parameter is optional for backward compatibility but required for validation in ACKNOWLEDGE/REJECT modes.
 
 ### Enums
 
@@ -819,6 +1164,16 @@ enum AcknowledgementMode {
   ON_SUCCESS = 'ON_SUCCESS',
   MANUAL = 'MANUAL',
   ALWAYS = 'ALWAYS',
+}
+```
+
+#### ValidationFailureMode
+
+```typescript
+enum ValidationFailureMode {
+  THROW = 'THROW',        // Throw error and invoke error handler (default)
+  ACKNOWLEDGE = 'ACKNOWLEDGE',  // Log error and remove message from queue
+  REJECT = 'REJECT',      // Log error, don't acknowledge (message retries)
 }
 ```
 
@@ -885,7 +1240,56 @@ enum AcknowledgementMode {
 - Ensure your message class matches the JSON structure
 - Use `class-transformer` decorators for complex types
 - Implement a custom `PayloadMessagingConverter` for non-JSON formats
-- Validate message structure in your listener
+- Enable validation to catch type mismatches early
+
+### Validation errors for valid messages
+
+**Possible causes:**
+1. class-validator decorators don't match your data structure
+2. Nested objects missing `@ValidateNested()` or `@Type()` decorators
+3. String numbers not being transformed (e.g., "123" vs 123)
+4. Date strings not being transformed to Date objects
+
+**Solutions:**
+- Review your validation decorators against actual message structure
+- Add `@Type()` decorator for nested objects and arrays
+- Use `@Transform()` decorator for custom transformations
+- Enable `validationError.value: true` to see actual values in errors
+- Check validation error details in logs or error handler
+
+### Messages being acknowledged without processing
+
+**Possible causes:**
+1. Validation is enabled with `ACKNOWLEDGE` mode
+2. Messages are failing validation
+
+**Solutions:**
+- Check logs for validation errors
+- Switch to `THROW` mode to see validation errors in error handler
+- Review validation decorators on your event class
+- Use `forbidNonWhitelisted: false` if messages have extra properties
+
+### class-validator not working
+
+**Check:**
+1. Verify class-validator is installed: `npm list class-validator`
+2. Ensure validation is enabled: `enableValidation(true)`
+3. Verify target class is set: `targetClass(YourEventClass)`
+4. Check that your event class has validation decorators
+5. Ensure decorators are imported from 'class-validator', not other packages
+
+### Validation passing for invalid data
+
+**Possible causes:**
+1. Validation is disabled (default behavior)
+2. No validation decorators on the class
+3. Wrong decorators being used
+
+**Solutions:**
+- Explicitly enable validation: `enableValidation(true)`
+- Add appropriate class-validator decorators to your event class
+- Verify decorators are from 'class-validator' package
+- Test validation in isolation with class-validator's `validate()` function
 
 ## Contributing
 

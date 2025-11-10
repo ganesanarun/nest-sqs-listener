@@ -12,6 +12,7 @@ import {ContainerConfiguration} from '../types/container-configuration';
 import {AcknowledgementMode} from '../types/acknowledgement-mode.enum';
 import {SQSMessage} from '../types/sqs-types';
 import {Semaphore} from './semaphore';
+import {ValidationHandledError} from '../converter/validation-handled-error';
 
 /**
  * Main container class that manages the complete lifecycle of message consumption for a single SQS queue.
@@ -31,7 +32,7 @@ import {Semaphore} from './semaphore';
  *
  * container.configure(options => {
  *   options
- *     .queueNames('order-queue')
+ *     .queueName('order-queue')
  *     .pollTimeout(20)
  *     .maxConcurrentMessages(10)
  *     .acknowledgementMode(AcknowledgementMode.ON_SUCCESS);
@@ -54,6 +55,7 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
     private inFlightMessages = 0;
     private readonly logger: Logger;
     private pollingPromise?: Promise<void>;
+    private abortController?: AbortController;
 
     constructor(
         private readonly sqsClient: SQSClient,
@@ -165,6 +167,7 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
         await this.resolveQueueUrl();
 
         this.isRunning = true;
+        this.abortController = new AbortController();
 
         this.logger.log(
             `Starting container ${this.config.id || this.listener.constructor.name} for queue ${this.config.queueName}`
@@ -182,27 +185,39 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
      */
     async stop(): Promise<void> {
         if (!this.isRunning) {
+            this.logger.debug('Stop called but container is not running');
             return;
         }
 
+        this.logger.debug('Stopping container...');
         this.isRunning = false;
+
+        // Abort any in-flight SQS requests to immediately stop long-polling
+        if (this.abortController) {
+            this.logger.debug('Aborting in-flight SQS requests...');
+            this.abortController.abort();
+        }
 
         // Wait for the polling loop to complete (with timeout)
         if (this.pollingPromise) {
+            this.logger.debug('Waiting for polling loop to complete...');
             let timeoutId: NodeJS.Timeout;
             const timeout = new Promise(resolve => {
                 timeoutId = setTimeout(resolve, 2000);
             });
             await Promise.race([this.pollingPromise, timeout]);
             clearTimeout(timeoutId!);
+            this.logger.debug('Polling loop completed');
         }
 
         // Wait for in-flight messages to complete
         const maxWait = 5000; // 5 seconds max
         const startTime = Date.now();
+        this.logger.debug(`Waiting for ${this.inFlightMessages} in-flight messages...`);
         while (this.inFlightMessages > 0 && (Date.now() - startTime) < maxWait) {
             await new Promise(resolve => setTimeout(resolve, 100));
         }
+        this.logger.debug(`In-flight messages: ${this.inFlightMessages}`);
 
         this.logger.log(`Stopped container ${this.config.id || 'unnamed'}`);
     }
@@ -270,6 +285,12 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
                     );
                 }
             } catch (error) {
+                // Check if this is an abort error (expected during shutdown)
+                if (error instanceof Error && error.name === 'AbortError') {
+                    this.logger.debug('Polling aborted during shutdown');
+                    break;
+                }
+
                 // Check if we should stop before handling error
                 if (!this.isRunning) {
                     break;
@@ -300,7 +321,10 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
             VisibilityTimeout: this.config.visibilityTimeout,
         });
 
-        const response = await this.sqsClient.send(command);
+        // Use abort signal to cancel long-polling requests during shutdown
+        const options = this.abortController ? { abortSignal: this.abortController.signal } : {};
+
+        const response = await this.sqsClient.send(command, options);
         return response.Messages || [];
     }
 
@@ -313,18 +337,20 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
         this.inFlightMessages++;
 
         try {
-            // Convert message body to typed payload
-            const payload = await this.converter!.convert(
-                message.Body!,
-                message.MessageAttributes || {}
-            );
-
-            // Create message context
+            // Create message context before calling converter
+            // This allows converters to acknowledge messages directly when needed
             const context = new MessageContextImpl(
                 message,
                 this.resolvedQueueUrl!,
                 this.sqsClient,
                 this.logger
+            );
+
+            // Convert message body to typed payload, passing context for validation scenarios
+            const payload = await this.converter!.convert(
+                message.Body!,
+                message.MessageAttributes || {},
+                context
             );
 
             // Invoke listener
@@ -335,6 +361,19 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
 
             this.logger.debug(`Successfully processed message ${message.MessageId}`);
         } catch (error) {
+            // Check if this is a validation error that was already handled
+            // In ACKNOWLEDGE mode: message was already acknowledged by converter
+            // In REJECT mode: message was not acknowledged and will retry
+            // In both cases: skip listener invocation and error handler
+            if (error instanceof ValidationHandledError) {
+                this.logger.debug(
+                    `Validation handled for message ${message.MessageId}, skipping listener invocation`
+                );
+                // Don't invoke error handler, don't modify acknowledgement state
+                // The converter already handled logging and acknowledgement as needed
+                return;
+            }
+
             // Create context for error handler
             const context = new MessageContextImpl(
                 message,
@@ -348,7 +387,8 @@ export class SqsMessageListenerContainer<T> implements OnModuleInit, OnModuleDes
             try {
                 payload = await this.converter!.convert(
                     message.Body!,
-                    message.MessageAttributes || {}
+                    message.MessageAttributes || {},
+                    context
                 );
             } catch {
                 payload = message.Body;

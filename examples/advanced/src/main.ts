@@ -23,22 +23,29 @@ async function bootstrap() {
     globalLogger.log(`Notification AWS Endpoint: ${process.env.NOTIFICATION_AWS_ENDPOINT || 'default'}`);
     globalLogger.log(`Notification AWS Region: ${process.env.NOTIFICATION_AWS_REGION || 'default'}`);
 
+    // Enable graceful shutdown hooks
+    app.enableShutdownHooks();
+
     await app.init();
 
     globalLogger.log('Application initialized successfully');
     globalLogger.log('SQS listeners are now active and polling for messages');
     globalLogger.log('Press Ctrl+C to stop');
 
-    // Keep the application running
+    // Graceful shutdown handler
     process.on('SIGINT', async () => {
         globalLogger.log('Received SIGINT, shutting down gracefully...');
         await app.close();
+        // Give logs time to flush before exiting
+        await new Promise(resolve => setTimeout(resolve, 200));
         process.exit(0);
     });
 
     process.on('SIGTERM', async () => {
         globalLogger.log('Received SIGTERM, shutting down gracefully...');
         await app.close();
+        // Give logs time to flush before exiting
+        await new Promise(resolve => setTimeout(resolve, 200));
         process.exit(0);
     });
 }

@@ -8,7 +8,6 @@ describe('DefaultQueueListenerErrorHandler', () => {
     let mockContext: jest.Mocked<MessageContext>;
 
     beforeEach(() => {
-        // Create mock logger
         mockLogger = {
             error: jest.fn(),
             log: jest.fn(),
@@ -16,8 +15,6 @@ describe('DefaultQueueListenerErrorHandler', () => {
             debug: jest.fn(),
             verbose: jest.fn(),
         } as any;
-
-        // Create mock context
         mockContext = {
             getMessageId: jest.fn().mockReturnValue('test-message-id-123'),
             getReceiptHandle: jest.fn().mockReturnValue('test-receipt-handle'),
@@ -27,7 +24,6 @@ describe('DefaultQueueListenerErrorHandler', () => {
             getApproximateReceiveCount: jest.fn().mockReturnValue(1),
             acknowledge: jest.fn().mockResolvedValue(undefined),
         } as any;
-
         errorHandler = new DefaultQueueListenerErrorHandler(mockLogger);
     });
 
