@@ -75,13 +75,15 @@ A minimal example showing core functionality with a single queue listener. Perfe
 
 **What you'll learn:**
 - How to set up a basic SQS listener
+- **Automatic message validation with class-validator**
 - Automatic message acknowledgement (ON_SUCCESS mode)
 - Separating business logic from infrastructure
 - LocalStack setup for local testing
 
 **Key files:**
 - `order-created.listener.ts` - Simple listener implementation
-- `order.module.ts` - Container configuration
+- `order-created.event.ts` - Event class with validation decorators
+- `order.module.ts` - Container configuration with validation
 - `order.service.ts` - Business logic separation
 
 [View Basic Example →](./basic)
@@ -93,6 +95,8 @@ A minimal example showing core functionality with a single queue listener. Perfe
 A comprehensive example demonstrating production-ready patterns and advanced features.
 
 **What you'll learn:**
+- **Advanced validation with different failure modes (THROW, ACKNOWLEDGE)**
+- **Custom error handling for validation errors**
 - Listener decorator pattern for cross-cutting concerns (tracing, logging, metrics)
 - OpenTelemetry distributed tracing implementation
 - Custom error handling with retry logic
@@ -103,11 +107,30 @@ A comprehensive example demonstrating production-ready patterns and advanced fea
 
 **Key files:**
 - `tracing.listener.ts` - Decorator pattern for adding tracing
-- `custom-error.handler.ts` - Custom error handling logic
+- `custom-error.handler.ts` - Custom error handling with validation error detection
+- `order-created.event.ts` - Event with strict UUID validation
+- `notification.event.ts` - Event with ACKNOWLEDGE validation mode
 - `tokens.ts` - Symbol-based DI tokens
 - `notification.listener.ts` - Manual acknowledgement example
 
 [View Advanced Example →](./advanced)
+
+### Validation Examples
+
+**Path:** `./VALIDATION_EXAMPLES.md`
+
+A comprehensive guide to message validation patterns and best practices.
+
+**What you'll learn:**
+- All three validation failure modes (THROW, ACKNOWLEDGE, REJECT)
+- Nested object and array validation
+- Conditional validation patterns
+- Custom validators
+- Whitelist and forbid non-whitelisted options
+- Testing validation with invalid messages
+- Best practices for production use
+
+[View Validation Examples →](./VALIDATION_EXAMPLES.md)
 
 ## Common Commands
 

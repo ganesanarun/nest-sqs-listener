@@ -57,8 +57,14 @@ send_message() {
   local queue_url=$1
   local message_body=$2
   local queue_name=$3
+  local attributes=$4
   
-  local cmd="aws sqs send-message --queue-url $queue_url --message-body '$message_body' --region $REGION --output json"
+  local cmd="aws sqs send-message \
+  --queue-url $queue_url \
+  --message-body '$message_body' \
+  --region $REGION \
+  --message-attributes '$attributes' \
+  --output json"
   
   if [ -n "$ENDPOINT_URL" ]; then
     cmd="$cmd --endpoint-url $ENDPOINT_URL"
@@ -81,8 +87,8 @@ echo ""
 
 # Order event message payloads
 ORDER_MESSAGE_1='{
-  "orderId": "ORD-001",
-  "customerId": "CUST-123",
+  "orderId": "6cd5b273-6d36-4d90-8fdb-a5d6fa474689",
+  "customerId": "800f817a-3c4c-4840-8692-d3afae381cdd",
   "amount": 99.99,
   "items": [
     {
@@ -97,8 +103,8 @@ ORDER_MESSAGE_1='{
 }'
 
 ORDER_MESSAGE_2='{
-  "orderId": "ORD-002",
-  "customerId": "CUST-456",
+  "orderId": "8355f7f5-c70e-4f18-b560-fa9af31f4e85",
+  "customerId": "800f817a-3c4c-4840-8692-d3afae381cdd",
   "amount": 149.50,
   "items": [
     {
@@ -113,34 +119,44 @@ NOTIFICATION_MESSAGE_1='{
   "userId": "USER-123",
   "type": "email",
   "message": "Your order has been confirmed",
-  "priority": "high"
+  "priority": "high",
+  "subject": "Order Confirmation"
 }'
 
 NOTIFICATION_MESSAGE_2='{
   "userId": "USER-456",
   "type": "sms",
   "message": "Your package is out for delivery",
-  "priority": "medium"
+  "priority": "medium",
+  "subject": "Delivery Update"
 }'
 
 NOTIFICATION_MESSAGE_3='{
   "userId": "USER-789",
   "type": "push",
   "message": "New promotion available",
-  "priority": "low"
+  "priority": "low",
+  "subject": "Special Offer"
 }'
+
+TRACE_ATTRIBUTES='
+{
+ "traceparent": {"DataType": "String", "StringValue": "00-0af7651916cd43dd8448eb211c80319c-b9c7c989f97918e1-01"}
+}'
+
+EMPTY_ATTRIBUTES='{}'
 
 # Send order messages
 echo "Sending order event messages..."
-send_message "$ORDER_QUEUE_URL" "$ORDER_MESSAGE_1" "$ORDER_QUEUE"
-send_message "$ORDER_QUEUE_URL" "$ORDER_MESSAGE_2" "$ORDER_QUEUE"
+send_message "$ORDER_QUEUE_URL" "$ORDER_MESSAGE_1" "$ORDER_QUEUE" "$EMPTY_ATTRIBUTES"
+send_message "$ORDER_QUEUE_URL" "$ORDER_MESSAGE_2" "$ORDER_QUEUE" "$EMPTY_ATTRIBUTES"
 echo ""
 
 # Send notification messages
 echo "Sending notification event messages..."
-send_message "$NOTIFICATION_QUEUE_URL" "$NOTIFICATION_MESSAGE_1" "$NOTIFICATION_QUEUE"
-send_message "$NOTIFICATION_QUEUE_URL" "$NOTIFICATION_MESSAGE_2" "$NOTIFICATION_QUEUE"
-send_message "$NOTIFICATION_QUEUE_URL" "$NOTIFICATION_MESSAGE_3" "$NOTIFICATION_QUEUE"
+send_message "$NOTIFICATION_QUEUE_URL" "$NOTIFICATION_MESSAGE_1" "$NOTIFICATION_QUEUE" "$TRACE_ATTRIBUTES"
+send_message "$NOTIFICATION_QUEUE_URL" "$NOTIFICATION_MESSAGE_2" "$NOTIFICATION_QUEUE" "$TRACE_ATTRIBUTES"
+send_message "$NOTIFICATION_QUEUE_URL" "$NOTIFICATION_MESSAGE_3" "$NOTIFICATION_QUEUE" "$TRACE_ATTRIBUTES"
 echo ""
 
 echo "=========================================="

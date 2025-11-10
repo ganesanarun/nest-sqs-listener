@@ -3,7 +3,7 @@ import pino from 'pino';
 import { context, trace } from '@opentelemetry/api';
 
 export class PinoOtelLoggerService implements LoggerService {
-    private readonly logger = pino({ level: 'info', transport: { target: 'pino-pretty' } });
+    private readonly logger = pino({ level: 'debug', transport: { target: 'pino-pretty' } });
 
     private withTrace(meta: Record<string, any> = {}) {
         const span = trace.getSpan(context.active());

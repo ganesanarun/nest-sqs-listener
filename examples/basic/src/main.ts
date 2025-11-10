@@ -21,7 +21,6 @@ async function bootstrap() {
   globalLogger.log('SQS listeners are now active and polling for messages');
   globalLogger.log('Press Ctrl+C to stop');
 
-  // Keep the application running
   process.on('SIGINT', async () => {
     globalLogger.log('Received SIGINT, shutting down gracefully...');
     await app.close();

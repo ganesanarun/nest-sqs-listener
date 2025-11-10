@@ -10,12 +10,9 @@ describe('MessageContext', () => {
     const testQueueUrl = 'https://sqs.us-east-1.amazonaws.com/123456789/test-queue';
 
     beforeEach(() => {
-        // Create a mock SQSClient
         mockSQSClient = {
             send: jest.fn().mockResolvedValue({}),
         };
-
-        // Create a test message
         testMessage = {
             MessageId: 'test-message-id-123',
             ReceiptHandle: 'test-receipt-handle-456',
@@ -41,7 +38,9 @@ describe('MessageContext', () => {
         it('should return correct message ID', () => {
             const context = new MessageContextImpl(testMessage, testQueueUrl, mockSQSClient, logger);
 
-            expect(context.getMessageId()).toBe('test-message-id-123');
+            const result = context.getMessageId();
+
+            expect(result).toBe('test-message-id-123');
         });
     });
 
@@ -49,7 +48,9 @@ describe('MessageContext', () => {
         it('should return correct receipt handle', () => {
             const context = new MessageContextImpl(testMessage, testQueueUrl, mockSQSClient, logger);
 
-            expect(context.getReceiptHandle()).toBe('test-receipt-handle-456');
+            const result = context.getReceiptHandle();
+
+            expect(result).toBe('test-receipt-handle-456');
         });
     });
 
@@ -57,7 +58,9 @@ describe('MessageContext', () => {
         it('should return correct queue URL', () => {
             const context = new MessageContextImpl(testMessage, testQueueUrl, mockSQSClient, logger);
 
-            expect(context.getQueueUrl()).toBe(testQueueUrl);
+            const result = context.getQueueUrl();
+
+            expect(result).toBe(testQueueUrl);
         });
     });
 
@@ -85,7 +88,6 @@ describe('MessageContext', () => {
                 ReceiptHandle: 'test-handle',
                 Body: '{}',
             };
-
             const context = new MessageContextImpl(
                 messageWithoutAttributes,
                 testQueueUrl,
@@ -93,7 +95,9 @@ describe('MessageContext', () => {
                 logger
             );
 
-            expect(context.getMessageAttributes()).toEqual({});
+            const result = context.getMessageAttributes();
+
+            expect(result).toEqual({});
         });
     });
 
@@ -115,7 +119,6 @@ describe('MessageContext', () => {
                 ReceiptHandle: 'test-handle',
                 Body: '{}',
             };
-
             const context = new MessageContextImpl(
                 messageWithoutAttributes,
                 testQueueUrl,
@@ -123,7 +126,9 @@ describe('MessageContext', () => {
                 logger
             );
 
-            expect(context.getSystemAttributes()).toEqual({});
+            const result = context.getSystemAttributes();
+
+            expect(result).toEqual({});
         });
     });
 
@@ -131,7 +136,9 @@ describe('MessageContext', () => {
         it('should parse and return receive count', () => {
             const context = new MessageContextImpl(testMessage, testQueueUrl, mockSQSClient, logger);
 
-            expect(context.getApproximateReceiveCount()).toBe(3);
+            const result = context.getApproximateReceiveCount();
+
+            expect(result).toBe(3);
         });
 
         it('should return 0 when ApproximateReceiveCount is not present', () => {
@@ -141,7 +148,6 @@ describe('MessageContext', () => {
                 Body: '{}',
                 Attributes: {},
             };
-
             const context = new MessageContextImpl(
                 messageWithoutCount,
                 testQueueUrl,
@@ -149,7 +155,9 @@ describe('MessageContext', () => {
                 logger
             );
 
-            expect(context.getApproximateReceiveCount()).toBe(0);
+            const result = context.getApproximateReceiveCount();
+
+            expect(result).toBe(0);
         });
 
         it('should return 0 when ApproximateReceiveCount is not a valid number', () => {
@@ -161,7 +169,6 @@ describe('MessageContext', () => {
                     ApproximateReceiveCount: 'invalid',
                 },
             };
-
             const context = new MessageContextImpl(
                 messageWithInvalidCount,
                 testQueueUrl,
@@ -169,20 +176,20 @@ describe('MessageContext', () => {
                 logger
             );
 
-            expect(context.getApproximateReceiveCount()).toBe(0);
+            const result = context.getApproximateReceiveCount();
+
+            expect(result).toBe(0);
         });
     });
 
     describe('acknowledge', () => {
         it('should call DeleteMessage with correct parameters', async () => {
             mockSQSClient.send.mockResolvedValue({});
-
             const context = new MessageContextImpl(testMessage, testQueueUrl, mockSQSClient, logger);
 
             await context.acknowledge();
 
             expect(mockSQSClient.send).toHaveBeenCalledTimes(1);
-
             const command = mockSQSClient.send.mock.calls[0][0];
             expect(command).toBeInstanceOf(DeleteMessageCommand);
             expect(command.input).toEqual({
@@ -195,10 +202,10 @@ describe('MessageContext', () => {
             const error = new Error('SQS service error');
             mockSQSClient.send.mockRejectedValue(error);
             const consoleErrorSpy = jest.spyOn(logger, 'error').mockImplementation();
-
             const context = new MessageContextImpl(testMessage, testQueueUrl, mockSQSClient, logger);
 
             await expect(context.acknowledge()).resolves.not.toThrow();
+
             expect(consoleErrorSpy.mock.calls[0][0]).toContain('Failed to acknowledge message test-message-id-123: SQS service error');
             consoleErrorSpy.mockRestore();
         });
