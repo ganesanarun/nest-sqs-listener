@@ -2,13 +2,69 @@
 
 [![npm version](https://img.shields.io/npm/v/@snow-tzu/nest-sqs-listener.svg)](https://www.npmjs.com/package/@snow-tzu/nest-sqs-listener) [![build](https://github.com/ganesanarun/nest-sqs-listener/actions/workflows/build.yml/badge.svg)](https://github.com/ganesanarun/nest-sqs-listener/actions/workflows/build.yml)
 
-A flexible, type-safe NestJS package for consuming messages from AWS SQS queues using a container-based architecture. This package provides programmatic configuration of message consumers with full control over polling, error handling, acknowledgement modes, and message processing lifecycle.
+## Introduction
 
-![SQS Listener](docs/images/hero.png)
+NestJS SQS Listener is a flexible, type-safe package for consuming messages from AWS SQS queues in NestJS applications. It abstracts infrastructure concerns, allowing you to focus on business logic and domain events, not AWS SDK details or error handling boilerplate.
+
+## Features
+
+- 🚀 **Infrastructure abstraction** - Focus on business logic while the package handles all SQS infrastructure concerns
+- 💉 **Full NestJS integration** - Leverage dependency injection and lifecycle hooks for seamless integration
+- 🔒 **Type-safe** - Generic types throughout for compile-time safety and better developer experience
+- 🎯 **Flexible acknowledgement** - Choose between ON_SUCCESS, MANUAL, or ALWAYS acknowledgement modes
+- 🔄 **Concurrency control** - Configurable parallel message processing with semaphore-based limits
+- 🛠️ **Highly customizable** - Bring your own message converters, error handlers
+- ✅ **Testable** - All components are injectable and mockable for easy unit and integration testing
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Why This Package?](#why-this-package)
+- [Comparison](#comparison)
+- [Core Concepts](#core-concepts)
+- [Extensibility & Decorators](#extensibility--decorators)
+- [Getting Started](#getting-started)
+- [Validation](#validation)
+- [Configuration & Acknowledgement](#configuration--acknowledgement)
+- [Best Practices](#best-practices)
+- [Advanced Usage](#advanced-usage)
+- [Examples](#examples)
+- [Testing](#testing)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Installation
+
+```bash
+npm install @snow-tzu/nest-sqs-listener @aws-sdk/client-sqs
+```
+
+### Optional: Validation Support
+
+For automatic message validation using decorators, install class-validator as a peer dependency:
+
+```bash
+npm install class-validator class-transformer
+```
+
+Note: class-transformer is already used internally for type conversion, but you may need to install it explicitly if not already in your project.
 
 ## Why This Package?
 
-This package **abstracts all infrastructure concerns** so your listeners contain **only business logic**. No more mixing AWS SDK calls, polling loops, error handling, and acknowledgement logic with your domain code.
+Existing solutions for SQS message consumption (AWS SDK, bbc/sqs-consumer, @ssut/nestjs-sqs) often:
+- Mix infrastructure logic with business code
+- Require manual parsing and error handling
+- Are tightly coupled to AWS SDK types (e.g., SQS Message)
+- Lack of strong typing and validation
+- Offer limited extensibility and testability
+
+This package was created to solve these pain points by:
+- Abstracting all infrastructure concerns
+- Providing a decorator-friendly, type-safe listener interface
+- Supporting custom converters and error handlers
+- Enabling centralized error handling and flexible acknowledgement modes
+- Integrating seamlessly with NestJS DI and lifecycle hooks
 
 ## Comparison
 
@@ -27,120 +83,7 @@ This package **abstracts all infrastructure concerns** so your listeners contain
 | Testability             | Poor             | Hard             | Limited          | ✅ Excellent                |
 | Extensibility           | Low              | Low              | Low              | High                        |
 
-## Features
-
-- 🚀 **Infrastructure abstraction** - Focus on business logic while the package handles all SQS infrastructure concerns
-- 💉 **Full NestJS integration** - Leverage dependency injection and lifecycle hooks for seamless integration
-- 🔒 **Type-safe** - Generic types throughout for compile-time safety and better developer experience
-- 🎯 **Flexible acknowledgement** - Choose between ON_SUCCESS, MANUAL, or ALWAYS acknowledgement modes
-- 🔄 **Concurrency control** - Configurable parallel message processing with semaphore-based limits
-- 🛠️ **Highly customizable** - Bring your own message converters, error handlers
-- ✅ **Testable** - All components are injectable and mockable for easy unit and integration testing
-
-## Installation
-
-```bash
-npm install @snow-tzu/nest-sqs-listener @aws-sdk/client-sqs
-```
-
-### Optional: Validation Support
-
-For automatic message validation using decorators, install class-validator as a peer dependency:
-
-```bash
-npm install class-validator class-transformer
-```
-
-Note: class-transformer is already used internally for type conversion, but you may need to install it explicitly if not already in your project.
-
-## Getting Started
-
-### 1. Configure SQSClient as a provider
-
-```typescript
-import { SQSClient } from '@aws-sdk/client-sqs';
-
-@Module({
-  providers: [
-    {
-      provide: 'SQS_CLIENT',
-      useFactory: () => {
-        return new SQSClient({
-          region: 'us-east-1',
-          credentials: {
-            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-          },
-        });
-      },
-    },
-  ],
-  exports: ['SQS_CLIENT'],
-})
-export class AwsConfigModule {}
-```
-
-### 2. Create a message listener (pure business logic)
-
-```typescript
-import { Injectable } from '@nestjs/common';
-import { QueueListener, MessageContext } from '@snow-tzu/nest-sqs-listener';
-
-export class OrderCreatedEvent {
-  orderId: string;
-  customerId: string;
-  amount: number;
-}
-
-@Injectable()
-export class OrderCreatedListener implements QueueListener<OrderCreatedEvent> {
-  constructor(private readonly orderService: OrderService) {}
-  async onMessage(message: OrderCreatedEvent, context: MessageContext): Promise<void> {
-    await this.orderService.processNewOrder(message);
-  }
-}
-```
-
-### 3. Register a listener container (infrastructure configuration)
-
-```typescript
-import { Module } from '@nestjs/common';
-import { SqsMessageListenerContainer, AcknowledgementMode } from '@snow-tzu/nest-sqs-listener';
-import { SQSClient } from '@aws-sdk/client-sqs';
-
-@Module({
-  imports: [AwsConfigModule],
-  providers: [
-    OrderService,
-    OrderCreatedListener,
-    {
-      provide: 'ORDER_CREATED_CONTAINER',
-      useFactory: (
-        listener: OrderCreatedListener,
-        sqsClient: SQSClient
-      ) => {
-        const container = new SqsMessageListenerContainer<OrderCreatedEvent>(sqsClient);
-        container.configure(options => {
-          options
-            .queueName('order-created-queue')
-            .pollTimeout(20)
-            .autoStartup(true)
-            .acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
-            .maxConcurrentMessages(10)
-            .visibilityTimeout(30);
-        });
-        container.setId('orderCreatedListener');
-        container.setMessageListener(listener);
-        return container;
-      },
-      inject: [OrderCreatedListener, 'SQS_CLIENT']
-    },
-  ]
-})
-export class OrderModule {}
-```
-
-### Core Concepts
+## Core Concepts
 
 #### SqsMessageListenerContainer
 
@@ -175,7 +118,7 @@ interface MessageContext {
 }
 ```
 
-## Message Validation
+## Validation
 
 This package integrates seamlessly with [class-validator](https://github.com/typestack/class-validator) to automatically validate incoming SQS messages against your business rules. When enabled, messages are validated before reaching your listener, ensuring your business logic only processes valid data.
 
@@ -1256,18 +1199,6 @@ enum ValidationFailureMode {
 - Use `@Transform()` decorator for custom transformations
 - Enable `validationError.value: true` to see actual values in errors
 - Check validation error details in logs or error handler
-
-### Messages being acknowledged without processing
-
-**Possible causes:**
-1. Validation is enabled with `ACKNOWLEDGE` mode
-2. Messages are failing validation
-
-**Solutions:**
-- Check logs for validation errors
-- Switch to `THROW` mode to see validation errors in error handler
-- Review validation decorators on your event class
-- Use `forbidNonWhitelisted: false` if messages have extra properties
 
 ### class-validator not working
 

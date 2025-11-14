@@ -1,6 +1,6 @@
 import {Logger} from '@nestjs/common';
-import {DefaultQueueListenerErrorHandler} from '../src/error/default-queue-listener-error-handler';
-import {MessageContext} from '../src';
+import {DefaultQueueListenerErrorHandler} from '../../src/error/default-queue-listener-error-handler';
+import {MessageContext} from '../../src';
 
 describe('DefaultQueueListenerErrorHandler', () => {
     let errorHandler: DefaultQueueListenerErrorHandler;

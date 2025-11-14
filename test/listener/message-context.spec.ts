@@ -1,6 +1,7 @@
+
 import {DeleteMessageCommand} from '@aws-sdk/client-sqs';
-import {SQSMessage} from '../src';
-import {MessageContextImpl} from "../src/listener/message-context.impl";
+import {SQSMessage} from '../../src';
+import {MessageContextImpl} from "../../src/listener/message-context.impl";
 import {Logger} from "@nestjs/common";
 
 describe('MessageContext', () => {

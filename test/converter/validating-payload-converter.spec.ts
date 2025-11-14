@@ -1,12 +1,14 @@
-import {ValidatingPayloadConverter} from '../src/converter/validating-payload-converter';
-import {PayloadMessagingConverter} from '../src/converter/payload-messaging-converter.interface';
-import {MessageValidationError} from '../src/converter/message-validation-error';
-import {ValidationFailureMode} from '../src/types/validation-failure-mode.enum';
-import {ValidationHandledError} from '../src/converter/validation-handled-error';
-import {MessageContext} from '../src/listener/message-context.interface';
-import {SQSMessageAttributes} from '../src/types/sqs-types';
+import {
+    MessageContext,
+    MessageValidationError,
+    PayloadMessagingConverter,
+    SQSMessageAttributes,
+    ValidatingPayloadConverter,
+    ValidationFailureMode
+} from '../../src';
+import {ValidationHandledError} from '../../src/converter/validation-handled-error';
 import {Logger} from '@nestjs/common';
-import {IsString, IsNumber, IsPositive, Min} from 'class-validator';
+import {IsNumber, IsPositive, IsString, Min} from 'class-validator';
 
 // Test classes with real class-validator decorators
 class OrderEvent {

@@ -1,4 +1,4 @@
-import {AcknowledgementMode, ContainerOptions, PayloadMessagingConverter} from '../src';
+import {AcknowledgementMode, ContainerOptions, PayloadMessagingConverter} from '../../src';
 
 describe('ContainerOptions', () => {
     describe('fluent API chaining', () => {

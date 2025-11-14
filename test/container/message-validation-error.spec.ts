@@ -1,6 +1,18 @@
 import 'reflect-metadata';
-import {MessageValidationError} from '../src/converter/message-validation-error';
-import {IsString, IsNumber, IsPositive, IsEmail, IsNotEmpty, MaxLength, Min, ValidateNested, IsArray, ArrayNotEmpty, validate} from 'class-validator';
+import {MessageValidationError} from '../../src';
+import {
+    ArrayNotEmpty,
+    IsArray,
+    IsEmail,
+    IsNotEmpty,
+    IsNumber,
+    IsPositive,
+    IsString,
+    MaxLength,
+    Min,
+    validate,
+    ValidateNested
+} from 'class-validator';
 import {Type} from 'class-transformer';
 
 // Test classes with real class-validator decorators
@@ -183,7 +195,7 @@ describe('MessageValidationError', () => {
 
             const constraints = error.getConstraints();
             expect(constraints.length).toBeGreaterThanOrEqual(2);
-        
+
             const orderIdConstraint = constraints.find(c => c.property === 'orderId');
             expect(orderIdConstraint).toBeDefined();
             expect(orderIdConstraint!.constraints[0]).toContain('must be a string');
@@ -556,11 +568,11 @@ describe('MessageValidationError', () => {
 
             // Should have errors for the invalid line item
             expect(constraints.length).toBeGreaterThan(0);
-            
+
             const skuError = constraints.find(c => c.property.includes('sku'));
             expect(skuError).toBeDefined();
             expect(skuError!.constraints[0]).toContain('must be a string');
-            
+
             const priceError = constraints.find(c => c.property.includes('price'));
             expect(priceError).toBeDefined();
             expect(priceError!.constraints[0]).toContain('must be a positive number');

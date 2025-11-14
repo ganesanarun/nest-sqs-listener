@@ -1,4 +1,4 @@
-import {Semaphore} from '../src/container/semaphore';
+import {Semaphore} from '../../src/container/semaphore';
 
 describe('Semaphore', () => {
     describe('acquire and release', () => {

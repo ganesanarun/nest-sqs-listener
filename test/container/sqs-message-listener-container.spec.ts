@@ -1,5 +1,5 @@
 import {SQSClient} from '@aws-sdk/client-sqs';
-import {AcknowledgementMode, QueueListener, QueueListenerErrorHandler, SqsMessageListenerContainer} from '../src';
+import {AcknowledgementMode, QueueListener, QueueListenerErrorHandler, SqsMessageListenerContainer} from '../../src';
 
 // Mock SQSClient
 jest.mock('@aws-sdk/client-sqs');

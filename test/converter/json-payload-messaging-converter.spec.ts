@@ -1,5 +1,5 @@
-import {JsonPayloadMessagingConverter} from '../src/converter/json-payload-messaging-converter';
-import {SQSMessageAttributes} from '../src';
+import {JsonPayloadMessagingConverter} from '../../src/converter/json-payload-messaging-converter';
+import {SQSMessageAttributes} from '../../src';
 
 // Test class for class-transformer testing
 class OrderEvent {

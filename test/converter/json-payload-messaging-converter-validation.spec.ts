@@ -1,11 +1,8 @@
 import 'reflect-metadata';
-import {JsonPayloadMessagingConverter} from '../src/converter/json-payload-messaging-converter';
-import {MessageValidationError} from '../src/converter/message-validation-error';
-import {ValidationFailureMode} from '../src/types/validation-failure-mode.enum';
-import {ValidationHandledError} from '../src/converter/validation-handled-error';
-import {MessageContext} from '../src/listener/message-context.interface';
+import {JsonPayloadMessagingConverter, MessageContext, MessageValidationError, ValidationFailureMode} from '../../src';
+import {ValidationHandledError} from '../../src/converter/validation-handled-error';
 import {Logger} from '@nestjs/common';
-import {IsString, IsNumber, IsPositive, ValidateNested, IsArray, Min} from 'class-validator';
+import {IsArray, IsNumber, IsPositive, IsString, Min, ValidateNested} from 'class-validator';
 import {Type} from 'class-transformer';
 
 // Test classes with real class-validator decorators
@@ -235,7 +232,12 @@ describe('JsonPayloadMessagingConverter - Validation', () => {
                     validatorOptions: {whitelist: true}
                 }
             );
-            const body = JSON.stringify({orderId: '123', customerId: '456', amount: 100, extraField: 'should be removed'});
+            const body = JSON.stringify({
+                orderId: '123',
+                customerId: '456',
+                amount: 100,
+                extraField: 'should be removed'
+            });
 
             const result = await converter.convert(body);
 
@@ -354,12 +356,4 @@ describe('JsonPayloadMessagingConverter - Validation', () => {
             expect(mockLogger.error).toHaveBeenCalled();
         });
     });
-});
-
-describe('JsonPayloadMessagingConverter - Graceful Degradation', () => {
-    // Note: Testing the case where class-validator is not installed is difficult
-    // with Jest mocks since the module is already mocked at the top level.
-    // The graceful degradation behavior is tested manually and through integration tests.
-    // The implementation in base-validating-converter.ts handles the case where
-    // the dynamic import of class-validator fails by logging a warning and skipping validation.
 });
