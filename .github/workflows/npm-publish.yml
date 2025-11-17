@@ -26,8 +26,9 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org/
       - run: rm -rf node_modules && yarn install --frozen-lockfile
-      - run: cd packages/core
-      - run: yarn publish --access public
+      - run: |
+          cd packages/core
+          yarn publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_AUTH_TOKEN}}
 
@@ -41,7 +42,8 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org/
       - run: rm -rf node_modules && yarn install --frozen-lockfile
-      - run: cd packages/nestjs-adapter
-      - run: yarn publish --access public
+      - run: |
+          cd packages/nestjs-adapter
+          yarn publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_AUTH_TOKEN}}
