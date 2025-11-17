@@ -1,6 +1,6 @@
 # NestJS SQS Listener
 
-[![npm version](https://img.shields.io/npm/v/@snow-tzu/nest-sqs-listener.svg)](https://www.npmjs.com/package/@snow-tzu/nest-sqs-listener) [![build](https://github.com/ganesanarun/nest-sqs-listener/actions/workflows/build.yml/badge.svg)](https://github.com/ganesanarun/nest-sqs-listener/actions/workflows/build.yml)
+[![npm version](https://img.shields.io/npm/v/@snow-tzu/nest-sqs-listener.svg)](https://www.npmjs.com/package/@snow-tzu/nest-sqs-listener) [![build](https://github.com/ganesanarun/sqs-listener/actions/workflows/build.yml/badge.svg)](https://github.com/ganesanarun/sqs-listener/actions/workflows/build.yml)
 
 ## Introduction
 

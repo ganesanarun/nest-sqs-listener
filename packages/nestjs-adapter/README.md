@@ -371,6 +371,6 @@ MIT
 
 ## Support
 
-- 📖 [Documentation](https://github.com/ganesanarun/nest-sqs-listener)
-- 🐛 [Issue Tracker](https://github.com/ganesanarun/nest-sqs-listener/issues)
-- 💬 [Discussions](https://github.com/ganesanarun/nest-sqs-listener/discussions)
+- 📖 [Documentation](https://github.com/ganesanarun/sqs-listener)
+- 🐛 [Issue Tracker](https://github.com/ganesanarun/sqs-listener/issues)
+- 💬 [Discussions](https://github.com/ganesanarun/sqs-listener/discussions)
