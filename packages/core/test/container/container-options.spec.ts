@@ -178,7 +178,9 @@ describe('ContainerOptions', () => {
                 maxMessagesPerPoll: 10,
                 autoStartup: true,
                 acknowledgementMode: AcknowledgementMode.ON_SUCCESS,
+                pollingErrorBackoff: 5,
                 messageConverter: undefined,
+                maxPollCycles: undefined,
             });
         });
 
@@ -208,7 +210,9 @@ describe('ContainerOptions', () => {
                 maxMessagesPerPoll: 5,
                 autoStartup: false,
                 acknowledgementMode: AcknowledgementMode.MANUAL,
+                pollingErrorBackoff: 5,
                 messageConverter: converter,
+                maxPollCycles: undefined,
             });
         });
 

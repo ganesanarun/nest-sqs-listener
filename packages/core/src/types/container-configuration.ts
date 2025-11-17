@@ -56,4 +56,10 @@ export interface ContainerConfiguration {
      * - ALWAYS: Always delete it regardless of processing outcome
      */
     acknowledgementMode: AcknowledgementMode;
+
+    /**
+     * Polling error backoff delay in seconds (default: 5)
+     * Duration to wait before retrying after a polling error
+     */
+    pollingErrorBackoff: number;
 }

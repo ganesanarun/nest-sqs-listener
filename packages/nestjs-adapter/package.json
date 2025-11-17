@@ -22,7 +22,7 @@
   "author": "ganesan arunachalam",
   "license": "MIT",
   "dependencies": {
-    "@snow-tzu/sqs-listener": "^0.0.1"
+    "@snow-tzu/sqs-listener": "0.0.3"
   },
   "devDependencies": {
     "@nestjs/common": "^10.0.0",

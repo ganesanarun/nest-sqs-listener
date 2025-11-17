@@ -33,6 +33,7 @@ export class ContainerOptions {
     private _maxMessagesPerPoll: number = 10;
     private _autoStartup: boolean = true;
     private _acknowledgementMode: AcknowledgementMode = AcknowledgementMode.ON_SUCCESS;
+    private _pollingErrorBackoff: number = 5;
     private _messageConverter?: PayloadMessagingConverter<any>;
     private _maxPollCycles?: number;
     private _targetClass?: Type<any>;
@@ -131,6 +132,23 @@ export class ContainerOptions {
      */
     acknowledgementMode(mode: AcknowledgementMode): this {
         this._acknowledgementMode = mode;
+        return this;
+    }
+
+    /**
+     * Sets the polling error backoff delay in seconds.
+     *
+     * Duration to wait before retrying after a polling error.
+     * Default: 5 seconds
+     *
+     * @param seconds Polling error backoff in seconds
+     * @returns This ContainerOptions instance for chaining
+     */
+    pollingErrorBackoff(seconds: number): this {
+        if (seconds < 0) {
+            throw new Error('pollingErrorBackoff must be non-negative');
+        }
+        this._pollingErrorBackoff = seconds;
         return this;
     }
 
@@ -266,6 +284,7 @@ export class ContainerOptions {
             maxMessagesPerPoll: this._maxMessagesPerPoll,
             autoStartup: this._autoStartup,
             acknowledgementMode: this._acknowledgementMode,
+            pollingErrorBackoff: this._pollingErrorBackoff,
             messageConverter: messageConverter,
             maxPollCycles: this._maxPollCycles,
         };

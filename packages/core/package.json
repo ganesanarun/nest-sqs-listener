@@ -1,6 +1,6 @@
 {
   "name": "@snow-tzu/sqs-listener",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Framework-agnostic SQS message listener with type safety and validation",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

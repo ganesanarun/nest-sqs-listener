@@ -73,6 +73,7 @@ export class SqsMessageListenerContainer<T> {
             maxMessagesPerPoll: 10,
             autoStartup: true,
             acknowledgementMode: AcknowledgementMode.ON_SUCCESS,
+            pollingErrorBackoff: 5,
         };
     }
 
@@ -152,6 +153,7 @@ export class SqsMessageListenerContainer<T> {
      */
     async start(): Promise<void> {
         if (this.isRunning) {
+            this.logger.debug(`Container ${this.config.id || 'unnamed'} is already running`);
             return;
         }
 
@@ -177,17 +179,19 @@ export class SqsMessageListenerContainer<T> {
         // Resolve queue URL
         await this.resolveQueueUrl();
 
+        this.logger.log(
+            `Starting SQS listener container: ${this.config.id || this.listener.constructor.name} for queue: ${this.config.queueName}`
+        );
+
         this.isRunning = true;
         this.abortController = new AbortController();
-
-        this.logger.log(
-            `Starting container ${this.config.id || this.listener.constructor.name} for queue ${this.config.queueName}`
-        );
 
         // Start the polling loop (don't await - let it run in the background)
         this.pollingPromise = this.poll().catch(error => {
             this.logger.error(`Fatal error in polling loop: ${error.message}`, error.stack);
         });
+
+        this.logger.log(`SQS listener container started: ${this.config.id || this.listener.constructor.name}`);
     }
 
     /**
@@ -305,10 +309,9 @@ export class SqsMessageListenerContainer<T> {
                 const errorStack = error instanceof Error ? error.stack : undefined;
                 this.logger.error(`Error polling queue: ${errorMessage}`, errorStack);
 
-                // Back off on error (but check isRunning periodically)
-                for (let i = 0; i < 50 && this.isRunning; i++) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                }
+                // Back off on error using configured pollingErrorBackoff (convert seconds to milliseconds)
+                const backoffMs = this.config.pollingErrorBackoff * 1000;
+                await new Promise(resolve => setTimeout(resolve, backoffMs));
             }
         }
     }
@@ -337,84 +340,90 @@ export class SqsMessageListenerContainer<T> {
      * Process a single message.
      */
     private async processMessage(message: SQSMessage): Promise<void> {
-        // Acquire semaphore permit
-        await this.semaphore!.acquire();
+        // Track in-flight message before any processing
         this.inFlightMessages++;
 
         try {
-            // Create message context before calling converter
-            // This allows converters to acknowledge messages directly when needed
-            const context = new MessageContextImpl(
-                message,
-                this.resolvedQueueUrl!,
-                this.sqsClient,
-                this.logger
-            );
+            // Acquire semaphore permit for concurrency control
+            await this.semaphore!.acquire();
 
-            // Convert message body to typed payload, passing context for validation scenarios
-            const payload = await this.converter!.convert(
-                message.Body!,
-                message.MessageAttributes || {},
-                context
-            );
-
-            // Invoke listener
-            await this.listener!.onMessage(payload, context);
-
-            // Handle acknowledgement based on mode
-            await this.handleAcknowledgement(context, true);
-
-            this.logger.debug(`Successfully processed message ${message.MessageId}`);
-        } catch (error) {
-            // Check if this is a validation error that was already handled
-            // In ACKNOWLEDGE mode: a message was already acknowledged by converter
-            // In REJECT mode: a message was not acknowledged and will retry
-            // In both cases: skip listener invocation and error handler
-            if (error instanceof ValidationHandledError) {
-                this.logger.debug(
-                    `Validation handled for message ${message.MessageId}, skipping listener invocation`
-                );
-                // Don't invoke the error handler, don't modify acknowledgement state
-                // The converter already handled logging and acknowledgement as needed
-                return;
-            }
-
-            // Create context for error handler
-            const context = new MessageContextImpl(
-                message,
-                this.resolvedQueueUrl!,
-                this.sqsClient,
-                this.logger
-            );
-
-            // Try to convert payload for the error handler (may fail)
-            let payload: any;
             try {
-                payload = await this.converter!.convert(
+                // Create message context before calling converter
+                // This allows converters to acknowledge messages directly when needed
+                const context = new MessageContextImpl(
+                    message,
+                    this.resolvedQueueUrl!,
+                    this.sqsClient,
+                    this.logger
+                );
+
+                // Convert message body to typed payload, passing context for validation scenarios
+                const payload = await this.converter!.convert(
                     message.Body!,
                     message.MessageAttributes || {},
                     context
                 );
-            } catch {
-                payload = message.Body;
+
+                // Invoke listener
+                await this.listener!.onMessage(payload, context);
+
+                // Handle acknowledgement based on mode
+                await this.handleAcknowledgement(context, true);
+
+                this.logger.debug(`Successfully processed message ${message.MessageId}`);
+            } catch (error) {
+                // Check if this is a validation error that was already handled
+                // In ACKNOWLEDGE mode: a message was already acknowledged by converter
+                // In REJECT mode: a message was not acknowledged and will retry
+                // In both cases: skip listener invocation and error handler
+                if (error instanceof ValidationHandledError) {
+                    this.logger.debug(
+                        `Validation handled for message ${message.MessageId}, skipping listener invocation`
+                    );
+                    // Don't invoke the error handler, don't modify acknowledgement state
+                    // The converter already handled logging and acknowledgement as needed
+                    return;
+                }
+
+                // Create context for error handler
+                const context = new MessageContextImpl(
+                    message,
+                    this.resolvedQueueUrl!,
+                    this.sqsClient,
+                    this.logger
+                );
+
+                // Try to convert payload for the error handler (may fail)
+                let payload: any;
+                try {
+                    payload = await this.converter!.convert(
+                        message.Body!,
+                        message.MessageAttributes || {},
+                        context
+                    );
+                } catch {
+                    payload = message.Body;
+                }
+
+                // Invoke error handler
+                const actualError = error instanceof Error ? error : new Error(String(error));
+                await this.errorHandler!.handleError(actualError, payload, context);
+
+                // Handle acknowledgement based on mode (failure case)
+                await this.handleAcknowledgement(context, false);
+
+                const errorMessage = actualError.message;
+                const errorStack = actualError.stack;
+                this.logger.error(
+                    `Error processing message ${message.MessageId}: ${errorMessage}`,
+                    errorStack
+                );
+            } finally {
+                // Always release semaphore permit
+                this.semaphore!.release();
             }
-
-            // Invoke error handler
-            const actualError = error instanceof Error ? error : new Error(String(error));
-            await this.errorHandler!.handleError(actualError, payload, context);
-
-            // Handle acknowledgement based on mode (failure case)
-            await this.handleAcknowledgement(context, false);
-
-            const errorMessage = actualError.message;
-            const errorStack = actualError.stack;
-            this.logger.error(
-                `Error processing message ${message.MessageId}: ${errorMessage}`,
-                errorStack
-            );
         } finally {
-            // Release semaphore permit
-            this.semaphore!.release();
+            // Always decrement in-flight counter, even if semaphore operations fail
             this.inFlightMessages--;
         }
     }
