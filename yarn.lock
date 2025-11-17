@@ -1426,6 +1426,15 @@
   dependencies:
     tslib "^2.6.2"
 
+"@snow-tzu/sqs-listener@^0.0.1":
+  version "0.0.1"
+  resolved "https://registry.yarnpkg.com/@snow-tzu/sqs-listener/-/sqs-listener-0.0.1.tgz#4083de81c160a84257c055b8b3b67986b5b80035"
+  integrity sha512-z61x+It/xSEROaGpVNpGwG/7ES/2J3CoLkxwWQ83/jeBHWZ7i12tIOHn/OciBj+/ed9ueswBFCOXAnDU8CWFog==
+  dependencies:
+    "@aws-sdk/client-sqs" "^3.0.0"
+    class-transformer "^0.5.1"
+    reflect-metadata "^0.1.13"
+
 "@tokenizer/inflate@^0.2.6":
   version "0.2.7"
   resolved "https://registry.yarnpkg.com/@tokenizer/inflate/-/inflate-0.2.7.tgz#32dd9dfc9abe457c89b3d9b760fc0690c85a103b"
