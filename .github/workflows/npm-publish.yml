@@ -2,7 +2,7 @@ name: Publish A Package
 
 on:
   release:
-    types: [created]
+    types: [ created ]
 
 jobs:
   build:
@@ -16,7 +16,7 @@ jobs:
       - run: yarn build
       - run: yarn test
 
-  publish-npm:
+  publish-core:
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -26,6 +26,22 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org/
       - run: rm -rf node_modules && yarn install --frozen-lockfile
+      - run: cd packages/core
+      - run: yarn publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_AUTH_TOKEN}}
+
+  publish-nest:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+      - run: rm -rf node_modules && yarn install --frozen-lockfile
+      - run: cd packages/nestjs-adapter
       - run: yarn publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_AUTH_TOKEN}}

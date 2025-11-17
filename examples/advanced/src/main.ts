@@ -69,6 +69,6 @@ registerInstrumentations({
 
 bootstrap().catch(err => {
     const logger = new PinoOtelLoggerService();
-    logger.error('Failed to start application:', {error: err});
+    logger.error('Failed to start application', err?.stack || err?.message || String(err), 'Bootstrap');
     process.exit(1);
 });

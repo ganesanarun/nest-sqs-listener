@@ -1,5 +1,12 @@
 import {Logger, Module} from '@nestjs/common';
 import {SQSClient} from '@aws-sdk/client-sqs';
+// BACKWARD COMPATIBILITY: The @snow-tzu/nest-sqs-listener package now uses the NestJS adapter
+// which wraps the framework-agnostic core package. The API remains 100% compatible.
+// SqsMessageListenerContainer is an alias for NestJSSqsMessageListenerContainer.
+// No code changes are required when upgrading from 0.0.4 to 0.0.5+
+//
+// OPTIONAL IMPROVEMENT: You can explicitly use NestJSSqsMessageListenerContainer:
+// import { NestJSSqsMessageListenerContainer } from '@snow-tzu/nest-sqs-listener';
 import {AcknowledgementMode, SqsMessageListenerContainer, ValidationFailureMode} from '@snow-tzu/nest-sqs-listener';
 import {OrderService} from '../services/order.service';
 import {OrderCreatedListener} from '../listeners/order-created.listener';
@@ -23,7 +30,7 @@ import {ORDER_CONTAINER, ORDER_SQS_CLIENT} from '../tokens';
                 const logger = new Logger('OrderCreatedContainer');
                 logger.log('Creating Order Created Container');
 
-                const container = new SqsMessageListenerContainer<OrderCreatedEvent>(sqsClient);
+                const container = new SqsMessageListenerContainer<OrderCreatedEvent>(sqsClient, logger);
 
                 container.configure(options => {
                     options

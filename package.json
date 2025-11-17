@@ -1,15 +1,19 @@
 {
-  "name": "@snow-tzu/nest-sqs-listener",
-  "version": "0.0.4",
-  "description": "A NestJS package that abstracts SQS infrastructure complexity, letting you write listeners with pure business logic while handling polling, acknowledgement, errors, and lifecycle automatically",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "name": "sqs-listener-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Monorepo for framework-agnostic SQS listener packages",
+  "workspaces": [
+    "packages/core",
+    "packages/nestjs-adapter"
+  ],
   "scripts": {
-    "build": "tsc",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
-    "prepublishOnly": "npm run build"
+    "build": "yarn workspaces run build",
+    "test": "yarn workspaces run test",
+    "test:watch": "yarn workspaces run test:watch",
+    "test:cov": "yarn workspaces run test:cov",
+    "clean": "yarn workspaces run clean",
+    "clean:all": "yarn workspaces run clean && rm -rf node_modules"
   },
   "keywords": [
     "nestjs",
@@ -17,34 +21,16 @@
     "aws",
     "message-queue",
     "listener",
-    "container"
+    "container",
+    "framework-agnostic"
   ],
   "author": "ganesan arunachalam",
   "license": "MIT",
-  "dependencies": {
-    "@aws-sdk/client-sqs": "^3.0.0",
-    "@nestjs/common": "^9.0.0 || ^10.0.0",
-    "@nestjs/core": "^9.0.0 || ^10.0.0",
-    "class-transformer": "^0.5.1",
-    "reflect-metadata": "^0.1.13",
-    "rxjs": "^7.8.0"
-  },
   "devDependencies": {
-    "@nestjs/testing": "^10.0.0",
     "@types/jest": "^29.5.0",
     "@types/node": "^20.0.0",
-    "class-validator": "^0.14.2",
     "jest": "^29.5.0",
     "ts-jest": "^29.1.0",
     "typescript": "^5.0.0"
-  },
-  "peerDependencies": {
-    "@nestjs/common": "^9.0.0 || ^10.0.0",
-    "@nestjs/core": "^9.0.0 || ^10.0.0"
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ]
+  }
 }

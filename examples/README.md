@@ -1,15 +1,36 @@
-# NestJS SQS Listener - Examples
+# SQS Listener - Examples
 
-This directory contains practical examples demonstrating how to use the `@snow-tzu/nest-sqs-listener` package in real-world scenarios. Each example is a complete, runnable NestJS application that you can use as a starting point for your own projects.
+This directory contains practical examples demonstrating how to use the SQS listener packages in real-world scenarios. The examples cover both the framework-agnostic core package and the NestJS adapter.
+
+## 📦 Package Architecture
+
+The library is now split into two packages:
+
+- **`@snow-tzu/sqs-listener`** - Framework-agnostic core package (use with any Node.js framework)
+- **`@snow-tzu/nest-sqs-listener`** - NestJS adapter (wraps the core package with NestJS integration)
 
 ## Overview
 
-The examples progress from simple to advanced, showing different features and patterns:
+The examples demonstrate different use cases and frameworks:
 
-| Example | Complexity | Features | Best For |
-|---------|-----------|----------|----------|
-| [Basic](./basic) | ⭐ | Single queue, automatic acknowledgement, simple setup | Getting started, learning the basics |
-| [Advanced](./advanced) | ⭐⭐⭐ | Multiple queues, listener decorators, tracing, custom error handling, multiple AWS accounts | Production patterns, complex use cases |
+| Example | Framework | Package | Complexity | Features | Best For |
+|---------|-----------|---------|-----------|----------|----------|
+| [Vanilla Node.js](./vanilla-nodejs) | None | Core | ⭐ | Manual lifecycle, custom logger | Framework-agnostic usage |
+| [Express](./express) | Express.js | Core | ⭐⭐ | Web server integration, graceful shutdown | Express applications |
+| [Basic](./basic) | NestJS | Adapter | ⭐ | Single queue, automatic acknowledgement | Getting started with NestJS |
+| [Advanced](./advanced) | NestJS | Adapter | ⭐⭐⭐ | Multiple queues, tracing, custom error handling | Production NestJS patterns |
+| [Migration](./migration) | NestJS | Adapter | ⭐ | Before/after comparison | Upgrading from 0.0.4 |
+
+## 🔄 Backward Compatibility
+
+**Good news for existing users:** The NestJS adapter (`@snow-tzu/nest-sqs-listener`) maintains 100% backward compatibility with version 0.0.4. Simply upgrade the package version - no code changes required!
+
+```bash
+# Upgrade with zero code changes
+yarn upgrade @snow-tzu/nest-sqs-listener
+```
+
+See the [Migration Guide](./migration) for details.
 
 ## Prerequisites
 

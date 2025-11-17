@@ -1,4 +1,6 @@
 import {Injectable, Logger} from '@nestjs/common';
+// BACKWARD COMPATIBILITY: All core types (QueueListener, MessageContext, etc.) are re-exported
+// from the NestJS adapter package for convenience. Your existing imports continue to work.
 import {MessageContext, QueueListener} from '@snow-tzu/nest-sqs-listener';
 import {OrderCreatedEvent} from '../events/order-created.event';
 import {OrderService} from '../services/order.service';
