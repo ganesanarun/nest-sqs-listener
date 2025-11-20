@@ -24,7 +24,7 @@
   "author": "ganesan arunachalam",
   "license": "MIT",
   "dependencies": {
-    "@snow-tzu/sqs-listener": "^0.0.3",
+    "@snow-tzu/sqs-listener": "^0.0.4",
     "fastify-plugin": "^4.0.0"
   },
   "devDependencies": {
