@@ -1,6 +1,12 @@
 import 'reflect-metadata';
-import {JsonPayloadMessagingConverter, LoggerInterface, MessageContext, MessageValidationError, ValidationFailureMode} from '../../src';
-import {ValidationHandledError} from '../../src/converter/validation-handled-error';
+import {
+    JsonPayloadMessagingConverter,
+    LoggerInterface,
+    MessageContext,
+    MessageValidationError,
+    ValidationFailureMode,
+    ValidationHandledError
+} from '../../src';
 import {IsArray, IsNumber, IsPositive, IsString, Min, ValidateNested} from 'class-validator';
 import {Type} from 'class-transformer';
 
@@ -24,6 +30,8 @@ class OrderItem {
     @IsNumber()
     @Min(1)
     quantity!: number;
+
+
 }
 
 class OrderWithItems {
@@ -38,6 +46,41 @@ class OrderWithItems {
 
 class PlainClass {
     value!: string;
+}
+
+export class OrderCreatedEvent {
+    @IsString()
+    orderId!: string;
+
+    @IsString()
+    customerId!: string;
+
+    @IsNumber()
+    @IsPositive()
+    amount!: number;
+
+    @IsArray()
+    @ValidateNested({each: true})
+    @Type(() => OrderCreatedEventOrderItem)
+    items!: OrderCreatedEventOrderItem[];
+}
+
+/**
+ * Order Item
+ *
+ * Represents an individual item within an order.
+ */
+export class OrderCreatedEventOrderItem {
+    @IsString()
+    productId!: string;
+
+    @IsNumber()
+    @Min(1)
+    quantity!: number;
+
+    @IsNumber()
+    @IsPositive()
+    price!: number;
 }
 
 describe('JsonPayloadMessagingConverter - Validation', () => {
@@ -219,6 +262,37 @@ describe('JsonPayloadMessagingConverter - Validation', () => {
             expect(result.items[0]).toBeInstanceOf(OrderItem);
             expect(result.items[1]).toBeInstanceOf(OrderItem);
         });
+
+        it('should validate nested array elements', async () => {
+            const converter = new JsonPayloadMessagingConverter(
+                OrderCreatedEvent,
+                {enableValidation: true}
+            );
+            const body = JSON.stringify({
+                "orderId": "6cd5b273-6d36-4d90-8fdb-a5d6fa474689",
+                "customerId": "800f817a-3c4c-4840-8692-d3afae381cdd",
+                "amount": 99,
+                "items": [
+                    {
+                        "productId": "PROD-456",
+                        "quantity": 2,
+                        "price": 29
+                    },
+                    {
+                        "productId": "PROD-789",
+                        "quantity": 1,
+                        "price": 39
+                    }
+                ]
+            });
+
+            const result = await converter.convert(body);
+
+            expect(result).toBeInstanceOf(OrderCreatedEvent);
+            expect(result.items).toHaveLength(2);
+            expect(result.items[0]).toBeInstanceOf(OrderCreatedEventOrderItem);
+            expect(result.items[1]).toBeInstanceOf(OrderCreatedEventOrderItem);
+        })
     });
 
     describe('Whitelist Mode', () => {

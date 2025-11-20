@@ -146,6 +146,22 @@ export class SqsMessageListenerContainer<T> {
         return this.isRunning;
     }
 
+    /**
+     * Get the container ID for error reporting and logging.
+     * Protected method for use by subclasses.
+     */
+    protected getContainerId(): string {
+        return this.config.id || 'unnamed';
+    }
+
+    /**
+     * Get the resolved queue URL for error reporting and logging.
+     * Protected method for use by subclasses.
+     */
+    protected getResolvedQueueUrl(): string {
+        return this.resolvedQueueUrl || this.config.queueName || 'unknown';
+    }
+
 
 
     /**

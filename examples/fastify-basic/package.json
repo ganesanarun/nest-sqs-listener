@@ -1,0 +1,28 @@
+{
+  "name": "fastify-sqs-listener-basic-example",
+  "version": "1.0.0",
+  "description": "Basic example for @snow-tzu/fastify-sqs-listener",
+  "private": true,
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "start:dev": "ts-node-dev --respawn src/index.ts",
+    "build": "tsc",
+    "test:example": "ts-node src/test-example.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.0.0",
+    "@snow-tzu/fastify-sqs-listener": "^0.0.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.0",
+    "dotenv": "^16.6.1",
+    "fastify": "^4.0.0",
+    "pino-pretty": "^10.0.0",
+    "reflect-metadata": "^0.1.13"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.0.0"
+  }
+}

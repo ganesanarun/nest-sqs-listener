@@ -1,22 +1,24 @@
-# SQS Listener - Framework-Agnostic AWS SQS Message Consumer
+# SQS Listener - Multi-Framework AWS SQS Message Consumer
 
-[![Core Package](https://img.shields.io/npm/v/@snow-tzu/sqs-listener.svg?label=core)](https://www.npmjs.com/package/@snow-tzu/sqs-listener) [![NestJS Adapter](https://img.shields.io/npm/v/@snow-tzu/nest-sqs-listener.svg?label=nestjs)](https://www.npmjs.com/package/@snow-tzu/nest-sqs-listener) [![build](https://github.com/ganesanarun/sqs-listener/actions/workflows/build.yml/badge.svg)](https://github.com/ganesanarun/sqs-listener/actions/workflows/build.yml)
+[![Core Package](https://img.shields.io/npm/v/@snow-tzu/sqs-listener.svg?label=core)](https://www.npmjs.com/package/@snow-tzu/sqs-listener) [![NestJS Adapter](https://img.shields.io/npm/v/@snow-tzu/nest-sqs-listener.svg?label=nestjs)](https://www.npmjs.com/package/@snow-tzu/nest-sqs-listener) [![Fastify Adapter](https://img.shields.io/npm/v/@snow-tzu/fastify-sqs-listener.svg?label=fastify)](https://www.npmjs.com/package/@snow-tzu/fastify-sqs-listener) [![build](https://github.com/ganesanarun/sqs-listener/actions/workflows/build.yml/badge.svg)](https://github.com/ganesanarun/sqs-listener/actions/workflows/build.yml)
 
-This monorepo contains two packages for consuming AWS SQS messages with type safety and validation:
+This monorepo contains three packages for consuming AWS SQS messages with type safety and validation:
 
 - **[@snow-tzu/sqs-listener](./packages/core)** - Framework-agnostic core package that works with vanilla Node.js,
-  Express, Fastify, Koa, or any Node.js environment
+  Express, Koa, or any Node.js environment
 - **[@snow-tzu/nest-sqs-listener](./packages/nestjs-adapter)** - NestJS adapter that wraps the core with NestJS-specific
   features (dependency injection, lifecycle hooks, decorators)
+- **[@snow-tzu/fastify-sqs-listener](./packages/fastify-adapter)** - Fastify adapter that provides native plugin integration with Fastify's ecosystem (plugin system, lifecycle hooks, pino logger)
 
-Both packages share the same powerful features: type safety, automatic validation, flexible acknowledgement modes,
+All packages share the same powerful features: type safety, automatic validation, flexible acknowledgement modes,
 concurrency control, and extensibility. The core package provides the foundation, while framework adapters add
-integration with specific frameworks.
+native integration with specific frameworks.
 
 **Choose your package:**
 
 - 🎯 **Using NestJS?** → Install `@snow-tzu/nest-sqs-listener` (includes core automatically)
-- 🚀 **Using Express, Fastify, or vanilla Node.js?** → Install `@snow-tzu/sqs-listener`
+- ⚡ **Using Fastify?** → Install `@snow-tzu/fastify-sqs-listener` (includes core automatically)
+- 🚀 **Using Express, vanilla Node.js, or other frameworks?** → Install `@snow-tzu/sqs-listener`
 
 ## Packages
 
@@ -65,20 +67,43 @@ npm install @snow-tzu/nest-sqs-listener @aws-sdk/client-sqs
 
 ---
 
+### Fastify Adapter (@snow-tzu/fastify-sqs-listener)
+
+Native Fastify plugin that integrates SQS message consumption with Fastify's ecosystem.
+
+**Additional Features:**
+
+- ✅ Native Fastify plugin integration
+- ✅ Automatic lifecycle management (onReady, onClose hooks)
+- ✅ Fastify Logger integration (pino)
+- ✅ Plugin encapsulation and dependency injection
+- ✅ Includes all core package features
+
+**Installation:**
+
+```bash
+npm install @snow-tzu/fastify-sqs-listener @aws-sdk/client-sqs
+```
+
+**Documentation:** [Fastify Adapter README](./packages/fastify-adapter/README.md)
+
+---
+
 ### Package Relationship
 
 ```
 ┌─────────────────────────────────────────┐
 │   Your Application                      │
-│   (NestJS, Express, Vanilla Node.js)    │
+│   (NestJS, Fastify, Express, etc.)      │
 └─────────────────────────────────────────┘
                   │
                   ▼
 ┌─────────────────────────────────────────┐
 │   Framework Adapter (Optional)          │
 │   @snow-tzu/nest-sqs-listener           │
+│   @snow-tzu/fastify-sqs-listener        │
 │   - Lifecycle hooks                     │
-│   - DI integration                      │
+│   - Framework integration               │
 └─────────────────────────────────────────┘
                   │
                   ▼
@@ -170,6 +195,62 @@ export class OrderModule {
 **That's it!** The container automatically starts on application initialization and stops on shutdown.
 
 See the [NestJS basic example](./examples/basic) for a complete working application.
+
+---
+
+### For Fastify Users
+
+```typescript
+// 1. Install
+npm install @snow-tzu/fastify-sqs-listener @aws-sdk/client-sqs
+
+// 2. Create your event class
+import {IsString, IsNumber} from 'class-validator';
+
+export class OrderCreatedEvent {
+    @IsString()
+    orderId: string;
+
+    @IsNumber()
+    amount: number;
+}
+
+// 3. Create your listener
+import {QueueListener} from '@snow-tzu/fastify-sqs-listener';
+
+class OrderListener implements QueueListener<OrderCreatedEvent> {
+    constructor(private logger: any) {}
+    
+    async handle(message: OrderCreatedEvent): Promise<void> {
+        this.logger.info(`Processing order ${message.orderId} for ${message.amount}`);
+        // Your business logic here
+    }
+}
+
+// 4. Register the plugin
+import Fastify from 'fastify';
+import {SQSClient} from '@aws-sdk/client-sqs';
+import {sqsListenerPlugin} from '@snow-tzu/fastify-sqs-listener';
+
+const fastify = Fastify({logger: true});
+
+await fastify.register(sqsListenerPlugin, {
+    queueNameOrUrl: 'https://sqs.us-east-1.amazonaws.com/account/order-queue',
+    listener: {
+        messageType: OrderCreatedEvent,
+        listener: new OrderListener(fastify.log)
+    },
+    sqsClient: new SQSClient({region: 'us-east-1'}),
+    autoStartup: true
+});
+
+// 5. Start the server - SQS listener starts automatically
+await fastify.listen({port: 3000});
+```
+
+**That's it!** The plugin automatically starts when Fastify is ready and stops on shutdown.
+
+See the [Fastify basic example](./examples/fastify-basic) for a complete working application.
 
 ---
 
@@ -321,6 +402,7 @@ See the [Express example](./examples/express) for a complete working application
 - [Packages](#packages)
 - [Quick Start](#quick-start)
     - [For NestJS Users](#for-nestjs-users)
+    - [For Fastify Users](#for-fastify-users)
     - [For Vanilla Node.js Users](#for-vanilla-nodejs-users)
     - [For Express Users](#for-express-users)
 - [Features](#features)
@@ -355,7 +437,17 @@ npm install @snow-tzu/nest-sqs-listener @aws-sdk/client-sqs
 The `@snow-tzu/nest-sqs-listener` package includes `@snow-tzu/sqs-listener` as a dependency, so you don't need to
 install the core package separately.
 
-### For Non-NestJS Users (Express, Fastify, Vanilla Node.js)
+### For Fastify Users
+
+Install the Fastify adapter package, which includes the core package automatically:
+
+```bash
+npm install @snow-tzu/fastify-sqs-listener @aws-sdk/client-sqs
+```
+
+The `@snow-tzu/fastify-sqs-listener` package includes `@snow-tzu/sqs-listener` as a dependency.
+
+### For Non-NestJS/Non-Fastify Users (Express, Vanilla Node.js)
 
 Install the framework-agnostic core package:
 
@@ -401,21 +493,23 @@ standalone Node.js worker, this package provides a consistent, type-safe approac
 
 ## Comparison
 
-| Capability              | AWS SDK (raw) | bbc/sqs-consumer | @ssut/nestjs-sqs | @snow-tzu/sqs-listener (Core) | @snow-tzu/nest-sqs-listener (Adapter) |
-|-------------------------|---------------|------------------|------------------|-------------------------------|---------------------------------------|
-| Framework Support       | Any           | Any              | NestJS only      | Any (Node.js)                 | NestJS only                           |
-| Listener Payload        | Raw JSON      | Raw JSON         | Raw SQS Message  | Strong Domain Event           | Strong Domain Event                   |
-| Parsing                 | Manual        | Manual           | Manual           | Automatic via converter       | Automatic via converter               |
-| Type Safety             | ❌ None        | ❌ None           | ⚠️ Weak          | ✅ Strong                      | ✅ Strong                              |
-| NestJS DI Integration   | ❌ No          | ❌ No             | ✅ Partial        | N/A                           | ✅ Full                                |
-| Architecture Separation | ❌ Poor        | ❌ Poor           | ⚠️ Partial       | ✅ Clean                       | ✅ Clean                               |
-| Decorator-Friendly      | ❌ No          | ❌ No             | ❌ No             | ✅ Yes                         | ✅ Yes                                 |
-| Ack Modes               | Manual only   | Auto only        | Auto only        | ON_SUCCESS / ALWAYS / MANUAL  | ON_SUCCESS / ALWAYS / MANUAL          |
-| Centralized Errors      | ❌ No          | ⚠️ Limited       | ❌ No             | ✅ Yes                         | ✅ Yes                                 |
-| Custom Converters       | ❌ No          | ❌ No             | ❌ No             | ✅ Yes                         | ✅ Yes                                 |
-| Concurrency Control     | Manual        | ✅ Yes            | ✅ Yes            | ✅ Yes                         | ✅ Yes                                 |
-| Testability             | Poor          | Hard             | Limited          | ✅ Excellent                   | ✅ Excellent                           |
-| Extensibility           | Low           | Low              | Low              | High                          | High                                  |
+| Capability              | AWS SDK (raw) | bbc/sqs-consumer | @ssut/nestjs-sqs | @snow-tzu/sqs-listener (Core) | @snow-tzu/nest-sqs-listener (NestJS) | @snow-tzu/fastify-sqs-listener (Fastify) |
+|-------------------------|---------------|------------------|------------------|-------------------------------|---------------------------------------|------------------------------------------|
+| Framework Support       | Any           | Any              | NestJS only      | Any (Node.js)                 | NestJS only                           | Fastify only                             |
+| Listener Payload        | Raw JSON      | Raw JSON         | Raw SQS Message  | Strong Domain Event           | Strong Domain Event                   | Strong Domain Event                      |
+| Parsing                 | Manual        | Manual           | Manual           | Automatic via converter       | Automatic via converter               | Automatic via converter                  |
+| Type Safety             | ❌ None        | ❌ None           | ⚠️ Weak          | ✅ Strong                      | ✅ Strong                              | ✅ Strong                                 |
+| Plugin Integration      | ❌ No          | ❌ No             | ❌ No             | N/A                           | N/A                                   | ✅ Native Fastify Plugin                  |
+| NestJS DI Integration   | ❌ No          | ❌ No             | ✅ Partial        | N/A                           | ✅ Full                                | N/A                                      |
+| Lifecycle Management    | Manual        | Manual           | Manual           | Manual                        | Automatic (NestJS hooks)             | Automatic (Plugin hooks)                 |
+| Architecture Separation | ❌ Poor        | ❌ Poor           | ⚠️ Partial       | ✅ Clean                       | ✅ Clean                               | ✅ Clean                                  |
+| Decorator-Friendly      | ❌ No          | ❌ No             | ❌ No             | ✅ Yes                         | ✅ Yes                                 | ✅ Yes                                    |
+| Ack Modes               | Manual only   | Auto only        | Auto only        | ON_SUCCESS / ALWAYS / MANUAL  | ON_SUCCESS / ALWAYS / MANUAL          | ON_SUCCESS / ALWAYS / MANUAL             |
+| Centralized Errors      | ❌ No          | ⚠️ Limited       | ❌ No             | ✅ Yes                         | ✅ Yes                                 | ✅ Yes                                    |
+| Custom Converters       | ❌ No          | ❌ No             | ❌ No             | ✅ Yes                         | ✅ Yes                                 | ✅ Yes                                    |
+| Concurrency Control     | Manual        | ✅ Yes            | ✅ Yes            | ✅ Yes                         | ✅ Yes                                 | ✅ Yes                                    |
+| Testability             | Poor          | Hard             | Limited          | ✅ Excellent                   | ✅ Excellent                           | ✅ Excellent                              |
+| Extensibility           | Low           | Low              | Low              | High                          | High                                  | High                                     |
 
 ## Core Concepts
 

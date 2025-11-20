@@ -5,7 +5,8 @@
   "description": "Monorepo for framework-agnostic SQS listener packages",
   "workspaces": [
     "packages/core",
-    "packages/nestjs-adapter"
+    "packages/nestjs-adapter",
+    "packages/fastify-adapter"
   ],
   "scripts": {
     "build": "yarn workspaces run build",

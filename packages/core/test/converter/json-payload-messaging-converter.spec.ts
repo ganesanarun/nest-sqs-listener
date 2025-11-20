@@ -1,5 +1,9 @@
-import {JsonPayloadMessagingConverter} from '../../src/converter/json-payload-messaging-converter';
-import {LoggerInterface, SQSMessageAttributes} from '../../src';
+import {
+    JsonPayloadMessagingConverter,
+    LoggerInterface,
+    PayloadMessagingConverter,
+    SQSMessageAttributes
+} from '../../src';
 
 // Test class for class-transformer testing
 class OrderEvent {
@@ -200,7 +204,7 @@ describe('JsonPayloadMessagingConverter', () => {
                     return event;
                 }
             }
-            
+
             const converter = new CustomConverter();
             const body = JSON.stringify({id: '123', customer: '456', total: 100});
 
@@ -216,5 +220,3 @@ describe('JsonPayloadMessagingConverter', () => {
     });
 });
 
-// Import for custom converter test
-import {PayloadMessagingConverter} from '../../src/converter/payload-messaging-converter.interface';

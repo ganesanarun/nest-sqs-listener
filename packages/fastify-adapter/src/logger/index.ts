@@ -1,0 +1,1 @@
+export { FastifyLoggerAdapter } from './fastify-logger-adapter';

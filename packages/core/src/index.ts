@@ -20,7 +20,7 @@ export { BaseValidatingConverter } from './converter/base-validating-converter';
 export { ValidatingPayloadConverter } from './converter/validating-payload-converter';
 export { MessageValidationError } from './converter/message-validation-error';
 export { ValidationHandledError } from './converter/validation-handled-error';
-export { JsonPayloadConverterOptions } from './converter/json-payload-converter-options.interface';
+export { JsonPayloadConverterOptions, ValidatorOptions } from './converter/json-payload-converter-options.interface';
 
 // ============================================================================
 // Error Handler Exports

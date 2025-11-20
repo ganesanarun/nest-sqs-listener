@@ -1,0 +1,1 @@
+export { sqsListenerPlugin } from './sqs-listener-plugin';

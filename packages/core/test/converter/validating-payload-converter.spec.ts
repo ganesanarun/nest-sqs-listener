@@ -5,9 +5,9 @@ import {
     PayloadMessagingConverter,
     SQSMessageAttributes,
     ValidatingPayloadConverter,
-    ValidationFailureMode
+    ValidationFailureMode,
+    ValidationHandledError
 } from '../../src';
-import {ValidationHandledError} from '../../src/converter/validation-handled-error';
 import {IsNumber, IsPositive, IsString, Min} from 'class-validator';
 
 // Test classes with real class-validator decorators

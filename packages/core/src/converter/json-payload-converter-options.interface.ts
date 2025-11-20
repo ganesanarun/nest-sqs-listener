@@ -11,7 +11,7 @@ export interface ValidatorOptions {
     skipMissingProperties?: boolean;
 
     /**
-     * If set to true, validator will strip a validated object of any properties that do not have any decorators.
+     * If set to true, a validator will strip a validated object of any properties that do not have any decorators.
      */
     whitelist?: boolean;
 
@@ -35,12 +35,12 @@ export interface ValidatorOptions {
      */
     validationError?: {
         /**
-         * Indicates if target should be exposed in ValidationError.
+         * Indicates if the target should be exposed in ValidationError.
          */
         target?: boolean;
 
         /**
-         * Indicates if validated value should be exposed in ValidationError.
+         * Indicates if a validated value should be exposed in ValidationError.
          */
         value?: boolean;
     };

@@ -1,0 +1,1 @@
+export { FastifySqsContainer } from './fastify-sqs-container';
