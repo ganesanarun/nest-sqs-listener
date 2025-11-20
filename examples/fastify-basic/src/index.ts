@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import 'dotenv/config';
 import Fastify from 'fastify';
 import {SQSClient} from '@aws-sdk/client-sqs';
-import {sqsListenerPlugin} from '@snow-tzu/fastify-sqs-listener';
+import {sqsListenerPlugin,ValidationFailureMode} from '@snow-tzu/fastify-sqs-listener';
 
 // Import events
 import {OrderCreatedEvent} from './events/order-created.event';
@@ -84,6 +84,8 @@ async function bootstrap() {
         sqsClient,
         autoStartup: true,
         maxConcurrentMessages: 5,
+        enableValidation: true,
+        validationFailureMode: ValidationFailureMode.THROW,
         containerId: 'order-processor'
     });
 
@@ -99,6 +101,7 @@ async function bootstrap() {
         sqsClient,
         autoStartup: true,
         maxConcurrentMessages: 3,
+        enableValidation: true,
         containerId: 'notification-processor'
     });
 

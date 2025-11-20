@@ -1459,10 +1459,15 @@
   dependencies:
     tslib "^2.6.2"
 
-"@snow-tzu/sqs-listener@0.0.3", "@snow-tzu/sqs-listener@^0.0.3":
+"@snow-tzu/sqs-listener@0.0.3":
   version "0.0.3"
   resolved "https://registry.yarnpkg.com/@snow-tzu/sqs-listener/-/sqs-listener-0.0.3.tgz#7b9195aa7e5bd48372b92d188128ae9c127bf331"
   integrity sha512-uMmX/Pv+dGpuG0d6I/frJXjyc/vhRuyCX2vM2OxXsYw8km+FSGavO5UMh0IrQFxesoJBVpBsaL3LXXc7D7uydQ==
+
+"@snow-tzu/sqs-listener@^0.0.4":
+  version "0.0.4"
+  resolved "https://registry.yarnpkg.com/@snow-tzu/sqs-listener/-/sqs-listener-0.0.4.tgz#c407eac711387f1379e2fd5afe2d95c29418c97a"
+  integrity sha512-exQQ7JbYAgfNdgtoHezdEj09Jhe8qp0XHvBdHJwBfXe90d2OYwS0fYfWA/RA2dG92MdRbLHVJu35KKiYNVbjmQ==
 
 "@tokenizer/inflate@^0.2.6":
   version "0.2.7"
