@@ -582,6 +582,7 @@ standalone Node.js worker, this package provides a consistent, type-safe approac
 | Architecture Separation | ❌ Poor        | ❌ Poor           | ⚠️ Partial       | ✅ Clean                       | ✅ Clean                              | ✅ Clean                                  |
 | Decorator-Friendly      | ❌ No          | ❌ No             | ❌ No             | ✅ Yes                         | ✅ Yes                                | ✅ Yes                                    |
 | Ack Modes               | Manual only   | Auto only        | Auto only        | ON_SUCCESS / ALWAYS / MANUAL  | ON_SUCCESS / ALWAYS / MANUAL         | ON_SUCCESS / ALWAYS / MANUAL             |
+| Batch Acknowledgement   | ❌ No          | ❌ No             | ❌ No             | ✅ Yes                         | ✅ Yes                                | ✅ Yes                                    |
 | Centralized Errors      | ❌ No          | ⚠️ Limited       | ❌ No             | ✅ Yes                         | ✅ Yes                                | ✅ Yes                                    |
 | Custom Converters       | ❌ No          | ❌ No             | ❌ No             | ✅ Yes                         | ✅ Yes                                | ✅ Yes                                    |
 | Concurrency Control     | Manual        | ✅ Yes            | ✅ Yes            | ✅ Yes                         | ✅ Yes                                | ✅ Yes                                    |
@@ -1125,6 +1126,9 @@ container.configure(options => {
 - `enableBatchAcknowledgement(enabled: boolean)` - Enable batch message acknowledgement
 - `batchAcknowledgementOptions(maxMessages: number, maxIntervalMs: number)` - Batching parameters (Max messages: at max
   10 or time interval)
+
+To Read More About Batch Acknowledgement, Check
+the [Batch Acknowledgement Documentation](./packages/core/docs/BATCH_ACKNOWLEDGEMENT.md)
 
 ### Configuration Examples by Framework
 
