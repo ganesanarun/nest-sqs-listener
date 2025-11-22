@@ -8,7 +8,8 @@ This monorepo contains three packages for consuming AWS SQS messages with type s
   Express, Koa, or any Node.js environment
 - **[@snow-tzu/nest-sqs-listener](./packages/nestjs-adapter)** - NestJS adapter that wraps the core with NestJS-specific
   features (dependency injection, lifecycle hooks, decorators)
-- **[@snow-tzu/fastify-sqs-listener](./packages/fastify-adapter)** - Fastify adapter that provides native plugin integration with Fastify's ecosystem (plugin system, lifecycle hooks, pino logger)
+- **[@snow-tzu/fastify-sqs-listener](./packages/fastify-adapter)** - Fastify adapter that provides native plugin
+  integration with Fastify's ecosystem (plugin system, lifecycle hooks, pino logger)
 
 All packages share the same powerful features: type safety, automatic validation, flexible acknowledgement modes,
 concurrency control, and extensibility. The core package provides the foundation, while framework adapters add
@@ -127,15 +128,13 @@ Get started quickly with complete, runnable examples for your framework.
 
 ### For NestJS Users
 
-```typescript
-// 1. Install
-npm
-install
-@snow
--tzu / nest - sqs - listener
-@aws
--sdk / client - sqs
+```shell
+# 1. Install
 
+npm install @snow-tzu/nest-sqs-listener @aws-sdk/client-sqs
+```
+
+```typescript
 // 2. Create your event class
 import {IsString, IsNumber} from 'class-validator';
 
@@ -200,10 +199,13 @@ See the [NestJS basic example](./examples/basic) for a complete working applicat
 
 ### For Fastify Users
 
-```typescript
-// 1. Install
-npm install @snow-tzu/fastify-sqs-listener @aws-sdk/client-sqs
+```shell
+# 1. Install
 
+npm install @snow-tzu/fastify-sqs-listener @aws-sdk/client-sqs
+```
+
+```typescript
 // 2. Create your event class
 import {IsString, IsNumber} from 'class-validator';
 
@@ -219,8 +221,9 @@ export class OrderCreatedEvent {
 import {QueueListener} from '@snow-tzu/fastify-sqs-listener';
 
 class OrderListener implements QueueListener<OrderCreatedEvent> {
-    constructor(private logger: any) {}
-    
+    constructor(private logger: any) {
+    }
+
     async handle(message: OrderCreatedEvent): Promise<void> {
         this.logger.info(`Processing order ${message.orderId} for ${message.amount}`);
         // Your business logic here
@@ -256,11 +259,13 @@ See the [Fastify basic example](./examples/fastify-basic) for a complete working
 
 ### For Vanilla Node.js Users
 
-```typescript
-// 1. Install
+```shell
+# 1. Install
 
 npm install @snow-tzu/sqs-listener @aws-sdk/client-sqs
+```
 
+```typescript
 // 2. Create your event class
 import {IsString, IsNumber} from 'class-validator';
 
@@ -317,10 +322,12 @@ See the [vanilla Node.js example](./examples/vanilla-nodejs) for a complete work
 
 ### For Express Users
 
-```typescript
-// 1. Install
-npm install @snow-tzu/sqs-listener @aws-sdk/client-sqs express
+```shell
+# 1. Install
+npm install @snow-tzu/sqs-listener @aws-sdk/client-sqs
+```
 
+```typescript
 // 2. Create your event class
 import {IsString, IsNumber} from 'class-validator';
 
@@ -393,9 +400,78 @@ See the [Express example](./examples/express) for a complete working application
 - 💉 **Full NestJS integration** - Leverage dependency injection and lifecycle hooks for seamless integration
 - 🔒 **Type-safe** - Generic types throughout for compile-time safety and better developer experience
 - 🎯 **Flexible acknowledgement** - Choose between ON_SUCCESS, MANUAL, or ALWAYS acknowledgement modes
+- 🔁 **Batch Acknowledgement** - Acknowledge multiple messages in a single API call for efficiency
 - 🔄 **Concurrency control** - Configurable parallel message processing with semaphore-based limits
 - 🛠️ **Highly customizable** - Bring your own message converters, error handlers
 - ✅ **Testable** - All components are injectable and mockable for easy unit and integration testing
+
+## Performance
+
+The SQS Listener packages deliver excellent performance characteristics, with comprehensive benchmarking conducted using
+LocalStack to ensure reliable metrics.
+
+### Key Performance Metrics
+
+- **Throughput**: ~500 msgs/sec at concurrency 20
+- **Latency**: p95 < 310ms, p99 < 320ms
+- **Memory Efficiency**: ~12.3MB average increase with no memory leaks
+- **API Efficiency**: Supports batch acknowledgements for 10x API call reduction
+
+### Benchmark Results Summary
+
+All benchmarks are conducted with LocalStack on localhost to ensure consistent testing conditions:
+
+| Concurrency | Throughput | Avg Latency | Use Case          |
+|-------------|------------|-------------|-------------------|
+| 1           | 330 msgs/s | 265ms       | Low-volume queues |
+| 5           | 495 msgs/s | 140ms       | Medium-volume     |
+| 10          | 495 msgs/s | 135ms       | High-volume       |
+| 20          | 497 msgs/s | 127ms       | Very high-volume  |
+
+### Latency Distribution
+
+Based on 200 messages at concurrency 10:
+
+- **Mean**: 272.65ms
+- **Median**: 270.50ms
+- **p95**: 305.00ms
+- **p99**: 309.00ms
+
+The consistent latency profile (low standard deviation: 19.39ms) makes this suitable for near-real-time processing
+scenarios.
+
+### Performance Tuning
+
+**For High Throughput:**
+
+```typescript
+container.configure(options => {
+    options
+        .maxConcurrentMessages(20)     // Increase parallelism
+        .maxMessagesPerPoll(10)        // Max batch size
+        .pollTimeout(1);               // Faster polling
+});
+```
+
+**For Low Latency:**
+
+```typescript
+container.configure(options => {
+    options
+        .maxConcurrentMessages(5)      // Lower concurrency
+        .pollTimeout(1)                // Quick polling
+        .acknowledgementMode(AcknowledgementMode.ALWAYS);
+});
+```
+
+### Detailed Analysis
+
+For comprehensive performance analysis, optimization recommendations, and detailed benchmark methodology, see
+the [Core Package Performance Documentation](./packages/core/PERFORMANCE.md)
+and [Performance Reports](https://github.com/ganesanarun/sqs-listener/tree/main/packages/core/benchmark).
+
+**Note**: These benchmarks were conducted using LocalStack for consistent testing conditions. Production AWS SQS
+performance may vary and is expected to scale further than LocalStack limitations.
 
 ## Table of Contents
 
@@ -406,6 +482,7 @@ See the [Express example](./examples/express) for a complete working application
     - [For Vanilla Node.js Users](#for-vanilla-nodejs-users)
     - [For Express Users](#for-express-users)
 - [Features](#features)
+- [Performance](#performance)
 - [Installation](#installation)
 - [Why This Package?](#why-this-package)
 - [Comparison](#comparison)
@@ -494,22 +571,22 @@ standalone Node.js worker, this package provides a consistent, type-safe approac
 ## Comparison
 
 | Capability              | AWS SDK (raw) | bbc/sqs-consumer | @ssut/nestjs-sqs | @snow-tzu/sqs-listener (Core) | @snow-tzu/nest-sqs-listener (NestJS) | @snow-tzu/fastify-sqs-listener (Fastify) |
-|-------------------------|---------------|------------------|------------------|-------------------------------|---------------------------------------|------------------------------------------|
-| Framework Support       | Any           | Any              | NestJS only      | Any (Node.js)                 | NestJS only                           | Fastify only                             |
-| Listener Payload        | Raw JSON      | Raw JSON         | Raw SQS Message  | Strong Domain Event           | Strong Domain Event                   | Strong Domain Event                      |
-| Parsing                 | Manual        | Manual           | Manual           | Automatic via converter       | Automatic via converter               | Automatic via converter                  |
-| Type Safety             | ❌ None        | ❌ None           | ⚠️ Weak          | ✅ Strong                      | ✅ Strong                              | ✅ Strong                                 |
-| Plugin Integration      | ❌ No          | ❌ No             | ❌ No             | N/A                           | N/A                                   | ✅ Native Fastify Plugin                  |
-| NestJS DI Integration   | ❌ No          | ❌ No             | ✅ Partial        | N/A                           | ✅ Full                                | N/A                                      |
+|-------------------------|---------------|------------------|------------------|-------------------------------|--------------------------------------|------------------------------------------|
+| Framework Support       | Any           | Any              | NestJS only      | Any (Node.js)                 | NestJS only                          | Fastify only                             |
+| Listener Payload        | Raw JSON      | Raw JSON         | Raw SQS Message  | Strong Domain Event           | Strong Domain Event                  | Strong Domain Event                      |
+| Parsing                 | Manual        | Manual           | Manual           | Automatic via converter       | Automatic via converter              | Automatic via converter                  |
+| Type Safety             | ❌ None        | ❌ None           | ⚠️ Weak          | ✅ Strong                      | ✅ Strong                             | ✅ Strong                                 |
+| Plugin Integration      | ❌ No          | ❌ No             | ❌ No             | N/A                           | N/A                                  | ✅ Native Fastify Plugin                  |
+| NestJS DI Integration   | ❌ No          | ❌ No             | ✅ Partial        | N/A                           | ✅ Full                               | N/A                                      |
 | Lifecycle Management    | Manual        | Manual           | Manual           | Manual                        | Automatic (NestJS hooks)             | Automatic (Plugin hooks)                 |
-| Architecture Separation | ❌ Poor        | ❌ Poor           | ⚠️ Partial       | ✅ Clean                       | ✅ Clean                               | ✅ Clean                                  |
-| Decorator-Friendly      | ❌ No          | ❌ No             | ❌ No             | ✅ Yes                         | ✅ Yes                                 | ✅ Yes                                    |
-| Ack Modes               | Manual only   | Auto only        | Auto only        | ON_SUCCESS / ALWAYS / MANUAL  | ON_SUCCESS / ALWAYS / MANUAL          | ON_SUCCESS / ALWAYS / MANUAL             |
-| Centralized Errors      | ❌ No          | ⚠️ Limited       | ❌ No             | ✅ Yes                         | ✅ Yes                                 | ✅ Yes                                    |
-| Custom Converters       | ❌ No          | ❌ No             | ❌ No             | ✅ Yes                         | ✅ Yes                                 | ✅ Yes                                    |
-| Concurrency Control     | Manual        | ✅ Yes            | ✅ Yes            | ✅ Yes                         | ✅ Yes                                 | ✅ Yes                                    |
-| Testability             | Poor          | Hard             | Limited          | ✅ Excellent                   | ✅ Excellent                           | ✅ Excellent                              |
-| Extensibility           | Low           | Low              | Low              | High                          | High                                  | High                                     |
+| Architecture Separation | ❌ Poor        | ❌ Poor           | ⚠️ Partial       | ✅ Clean                       | ✅ Clean                              | ✅ Clean                                  |
+| Decorator-Friendly      | ❌ No          | ❌ No             | ❌ No             | ✅ Yes                         | ✅ Yes                                | ✅ Yes                                    |
+| Ack Modes               | Manual only   | Auto only        | Auto only        | ON_SUCCESS / ALWAYS / MANUAL  | ON_SUCCESS / ALWAYS / MANUAL         | ON_SUCCESS / ALWAYS / MANUAL             |
+| Centralized Errors      | ❌ No          | ⚠️ Limited       | ❌ No             | ✅ Yes                         | ✅ Yes                                | ✅ Yes                                    |
+| Custom Converters       | ❌ No          | ❌ No             | ❌ No             | ✅ Yes                         | ✅ Yes                                | ✅ Yes                                    |
+| Concurrency Control     | Manual        | ✅ Yes            | ✅ Yes            | ✅ Yes                         | ✅ Yes                                | ✅ Yes                                    |
+| Testability             | Poor          | Hard             | Limited          | ✅ Excellent                   | ✅ Excellent                          | ✅ Excellent                              |
+| Extensibility           | Low           | Low              | Low              | High                          | High                                 | High                                     |
 
 ## Core Concepts
 
@@ -638,26 +715,18 @@ interface MessageContext {
 **Usage Example:**
 
 ```typescript
-async
-onMessage(event
-:
-OrderCreatedEvent, context
-:
-MessageContext
-):
-Promise < void > {
-    console.log(`Processing message ${context.getMessageId()}`);
-
-    // Check retry count
-    if(context.getApproximateReceiveCount() > 3
-)
-{
-    console.warn('Message has been retried multiple times');
-}
+class OrderListener implements QueueListener<OrderCreatedEvent> {
+    async onMessage(event: OrderCreatedEvent, context: MessageContext): Promise<void> {
+        console.log(`Processing message ${context.getMessageId()}`);
+        // Check retry count
+        if (context.getApproximateReceiveCount() > 3) {
+            console.warn('Message has been retried multiple times');
+        }
 
 // Manual acknowledgement (when using AcknowledgementMode.MANUAL)
-await this.processOrder(event);
-await context.acknowledge();
+        await this.processOrder(event);
+        await context.acknowledge();
+    }
 }
 ```
 
@@ -796,9 +865,8 @@ Control what happens when a message fails validation:
 
 Throws an error and invokes your error handler. The message remains in the queue for retry.
 
-```typescript
-.
-validationFailureMode(ValidationFailureMode.THROW)
+```
+.validationFailureMode(ValidationFailureMode.THROW)
 ```
 
 **Use when:**
@@ -811,9 +879,8 @@ validationFailureMode(ValidationFailureMode.THROW)
 
 Logs the validation error and immediately removes the message from the queue. Your listener is never invoked.
 
-```typescript
-.
-validationFailureMode(ValidationFailureMode.ACKNOWLEDGE)
+```
+.validationFailureMode(ValidationFailureMode.ACKNOWLEDGE)
 ```
 
 **Use when:**
@@ -827,15 +894,14 @@ validationFailureMode(ValidationFailureMode.ACKNOWLEDGE)
 Logs the validation error but doesn't acknowledge the message. The message will retry and eventually move to your
 dead-letter queue.
 
-```typescript
-.
-validationFailureMode(ValidationFailureMode.REJECT)
+```
+.validationFailureMode(ValidationFailureMode.REJECT)
 ```
 
 **Use when:**
 
 - You want invalid messages to go to a dead-letter queue for analysis
-- You don't want to invoke error handler overhead for validation failures
+- You don't want to invoke the error handler overhead for validation failures
 - You're using a separate process to handle DLQ messages
 
 ### Validation Options
@@ -984,7 +1050,7 @@ container.configure(options => {
 });
 ```
 
-#### Validation with custom converter (automatic wrapping)
+#### Validation with a custom converter (automatic wrapping)
 
 ```typescript
 const customConverter = new XmlOrderConverter();
@@ -1004,7 +1070,7 @@ container.configure(options => {
 
 Validation is designed to fail gracefully:
 
-- **class-validator not installed**: Validation is skipped, messages are processed normally
+- **class-validator isn't installed**: Validation is skipped, messages are processed normally
 - **No decorators on class**: Validation passes, messages are processed normally
 - **Validation explicitly disabled**: Validation is skipped entirely
 
@@ -1035,7 +1101,10 @@ container.configure(options => {
         .targetClass(MyEventClass)
         .enableValidation(true)
         .validationFailureMode(ValidationFailureMode.THROW)
-        .validatorOptions({whitelist: true});
+        .validatorOptions({whitelist: true})
+        // batch acknowledgement is optional
+        .enableBatchAcknowledgement(true)
+        .batchAcknowledgementOptions(10, 100); // max 10 messages or 100ms interval
 });
 ```
 
@@ -1053,6 +1122,9 @@ container.configure(options => {
 - `enableValidation(enabled: boolean)` - Enable class-validator validation
 - `validationFailureMode(mode: ValidationFailureMode)` - Validation failure behavior
 - `validatorOptions(options: ValidatorOptions)` - class-validator options
+- `enableBatchAcknowledgement(enabled: boolean)` - Enable batch message acknowledgement
+- `batchAcknowledgementOptions(maxMessages: number, maxIntervalMs: number)` - Batching parameters (Max messages: at max
+  10 or time interval)
 
 ### Configuration Examples by Framework
 
@@ -1215,8 +1287,8 @@ process.on('SIGINT', shutdown);
 
 **Lifecycle Management:**
 
-- ⚠️ Start container after Express server is ready
-- ⚠️ Stop container before process exits
+- ⚠️ Start the container after the Express server is ready
+- ⚠️ Stop container before a process exits
 - ✅ Run SQS listener alongside HTTP server
 - ✅ Share dependencies between HTTP and SQS handlers
 
@@ -1238,7 +1310,7 @@ Acknowledgement modes control when messages are deleted from the queue. This beh
 
 #### ON_SUCCESS (Default)
 
-Deletes message only if `onMessage()` completes successfully:
+Deletes a message only if `onMessage()` completes successfully:
 
 ```typescript
 container.configure(options => {
@@ -1251,7 +1323,7 @@ container.configure(options => {
 **Behavior:**
 
 - ✅ Message deleted if `onMessage()` completes without error
-- ❌ Message remains in queue if error is thrown
+- ❌ Message remains in the queue if an error is thrown
 - ✅ Message becomes visible again after visibility timeout
 - ✅ Automatic retry on failure
 
@@ -1310,7 +1382,7 @@ class OrderListener implements QueueListener<OrderCreatedEvent> {
 
 #### ALWAYS
 
-Always deletes message, even if processing fails:
+Always deletes a message, even if processing fails:
 
 ```typescript
 container.configure(options => {
@@ -1636,8 +1708,10 @@ This pattern is especially important when connecting to multiple AWS accounts:
 ```typescript
 // Primary AWS account for orders
 {
-    provide: ORDER_SQS_CLIENT, 
-    useFactory: () => new SQSClient({
+    provide: ORDER_SQS_CLIENT,
+        useFactory
+:
+    () => new SQSClient({
         region: process.env.ORDER_AWS_REGION,
         credentials: {
             accessKeyId: process.env.ORDER_AWS_ACCESS_KEY_ID,
@@ -1649,7 +1723,9 @@ This pattern is especially important when connecting to multiple AWS accounts:
 // Secondary AWS account for notifications
 {
     provide: NOTIFICATION_SQS_CLIENT,
-    useFactory: () => new SQSClient({
+        useFactory
+:
+    () => new SQSClient({
         region: process.env.NOTIFICATION_AWS_REGION,
         credentials: {
             accessKeyId: process.env.NOTIFICATION_AWS_ACCESS_KEY_ID,
@@ -1984,12 +2060,12 @@ This sends messages with validation errors to test different validation failure 
 
 ### Example Comparison
 
-| Example                                      | Framework  | Package |  Lifecycle | DI  | Best For                    |
+| Example                                      | Framework  | Package | Lifecycle | DI  | Best For                    |
 |----------------------------------------------|------------|---------|-----------|-----|-----------------------------|
-| [Vanilla Node.js](./examples/vanilla-nodejs) | None       | Core    |  Manual    | No  | Framework-agnostic usage    |
-| [Express](./examples/express)                | Express.js | Core    |  Manual    | No  | Express applications        |
-| [Basic](./examples/basic)                    | NestJS     | Adapter |  Automatic | Yes | Getting started with NestJS |
-| [Advanced](./examples/advanced)              | NestJS     | Adapter |  Automatic | Yes | Production NestJS patterns  |
+| [Vanilla Node.js](./examples/vanilla-nodejs) | None       | Core    | Manual    | No  | Framework-agnostic usage    |
+| [Express](./examples/express)                | Express.js | Core    | Manual    | No  | Express applications        |
+| [Basic](./examples/basic)                    | NestJS     | Adapter | Automatic | Yes | Getting started with NestJS |
+| [Advanced](./examples/advanced)              | NestJS     | Adapter | Automatic | Yes | Production NestJS patterns  |
 
 ---
 
@@ -2160,7 +2236,7 @@ Main container class for managing message consumption.
 
 **Constructor:**
 
-```typescript
+```
 constructor(sqsClient: SQSClient)
 ```
 
@@ -2179,11 +2255,9 @@ Default JSON message converter with optional validation support.
 
 **Constructor:**
 
-```typescript
-constructor(
-    targetClass?: Type<T>,
-    options?: JsonPayloadConverterOptions,
-    logger?: Logger)
+```
+constructor(targetClass?: Type<T>, options?: JsonPayloadConverterOptions,
+            logger?: Logger) {}
 ```
 
 **Options:**
@@ -2202,11 +2276,11 @@ Decorator that wraps any PayloadMessagingConverter to add validation capabilitie
 
 **Constructor:**
 
-```typescript
-constructor(innerConverter: PayloadMessagingConverter<T>, targetClass: Type<T>,
-    options ? : JsonPayloadConverterOptions,
-    logger ? : Logger
-)
+```
+constructor(innerConverter: PayloadMessagingConverter<T>,
+            targetClass: Type<T>,
+            options?: JsonPayloadConverterOptions,
+            logger?: Logger) {}
 ```
 
 **Usage:**

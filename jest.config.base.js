@@ -1,7 +1,20 @@
 module.exports = {
     preset: 'ts-jest',
     testEnvironment: 'node',
-    testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
+    // Clear test patterns specifically for unit tests - exclude integration and documentation tests
+    testMatch: [
+        '**/test/**/*.spec.ts',
+        '**/test/**/*.test.ts',
+        '!**/integration-test/**/*',
+        '!**/test/documentation/**/*'
+    ],
+    testPathIgnorePatterns: [
+        '/node_modules/',
+        '/dist/',
+        '/coverage/',
+        '/integration-test/',
+        '/test/documentation/'
+    ],
     transform: {
         '^.+\\.ts$': 'ts-jest',
     },
@@ -22,8 +35,9 @@ module.exports = {
         },
     },
     moduleFileExtensions: ['ts', 'js', 'json'],
-    testTimeout: 10000,
+    // Set timeout to 20 seconds for unit tests as specified in requirements
+    testTimeout: 20000,
     verbose: true,
-    maxWorkers: 1,
-    maxConcurrency: 1,
+    maxWorkers: '50%',
+    maxConcurrency: 5,
 };

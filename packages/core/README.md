@@ -12,6 +12,8 @@ Framework-agnostic SQS message listener with type safety and validation. This is
 - 🛡️ Comprehensive error handling
 - 📝 Flexible logging abstraction
 - 🔧 Manual lifecycle management for full control
+- ⚡ **High performance**: ~500 msgs/sec throughput with optimized concurrency
+- 💰 **Cost optimized**: 10x fewer API calls with batch acknowledgements (opt-in)
 
 ## Installation
 
@@ -335,13 +337,316 @@ container.configure(options => {
 });
 ```
 
+## Batch Acknowledgements
+
+Batch acknowledgements are a powerful cost and performance optimization that can reduce your AWS SQS API calls by up to 10x. This feature leverages AWS SQS's maximum 10 messages per batch limit and is particularly valuable for high-volume applications processing hundreds or thousands of messages.
+
+### Quick Start
+
+Enable batch acknowledgements with a single configuration option:
+
+```typescript
+import { SqsMessageListenerContainer, AcknowledgementMode } from '@snow-tzu/sqs-listener';
+
+const container = new SqsMessageListenerContainer(sqsClient);
+
+container.configure(options => {
+  options
+    .queueName('my-queue')
+    .acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
+    .enableBatchAcknowledgement(true);  // Enable batch acknowledgements
+});
+```
+
+### Configuration Options
+
+#### Basic Configuration (Recommended)
+
+```typescript
+// Enable with optimal defaults
+container.configure(options => {
+  options
+    .queueName('my-queue')
+    .enableBatchAcknowledgement(true);
+  // Defaults: batch size 10, flush interval 100ms
+});
+```
+
+#### Advanced Configuration
+
+```typescript
+// Customize batch behavior
+container.configure(options => {
+  options
+    .queueName('my-queue')
+    .enableBatchAcknowledgement(true)
+    .batchAcknowledgementOptions(10, 100);  // maxSize: 10, flushInterval: 100ms
+});
+```
+
+#### Configuration for Different Use Cases
+
+**High-Volume Applications** (maximize cost savings):
+```typescript
+container.configure(options => {
+  options
+    .queueName('high-volume-queue')
+    .enableBatchAcknowledgement(true)
+    .batchAcknowledgementOptions(10, 200);  // Larger batches, longer wait
+});
+```
+
+**Low-Latency Applications** (minimize acknowledgement delay):
+```typescript
+container.configure(options => {
+  options
+    .queueName('low-latency-queue')
+    .enableBatchAcknowledgement(true)
+    .batchAcknowledgementOptions(5, 50);   // Smaller batches, faster flush
+});
+```
+
+### How It Works
+
+1. **Message Processing**: When messages are successfully processed, they're queued for batch acknowledgement
+2. **Automatic Batching**: Messages are automatically grouped into batches up to the configured size (default: 10)
+3. **Smart Flushing**: Batches are flushed when full or after the configured interval (default: 100ms)
+4. **Graceful Shutdown**: All pending batches are flushed when the container stops
+
+### Performance Benefits
+
+#### API Call Reduction
+
+| Messages | Without Batching | With Batching | Reduction |
+|----------|------------------|---------------|-----------|
+| 100      | 100 calls        | 10 calls      | 90%       |
+| 1,000    | 1,000 calls      | 100 calls     | 90%       |
+| 10,000   | 10,000 calls     | 1,000 calls   | 90%       |
+
+#### Cost Savings
+
+For an application processing 1 million messages per day:
+
+| Scenario | API Calls/Day | Cost/Day* | Annual Savings |
+|----------|---------------|-----------|----------------|
+| Without Batching | 1,000,000 | $0.40 | - |
+| With Batching | ~100,000 | $0.04 | ~$131 |
+
+*Based on $0.0000004 per SQS request
+
+### Compatibility
+
+Batch acknowledgements work with all acknowledgement modes:
+
+#### ON_SUCCESS Mode (Default)
+```typescript
+container.configure(options => {
+  options
+    .acknowledgementMode(AcknowledgementMode.ON_SUCCESS)
+    .enableBatchAcknowledgement(true);
+});
+```
+
+#### MANUAL Mode
+```typescript
+container.configure(options => {
+  options
+    .acknowledgementMode(AcknowledgementMode.MANUAL)
+    .enableBatchAcknowledgement(true);
+});
+
+// In your listener
+class MyListener implements QueueListener<MyMessage> {
+  async onMessage(payload: MyMessage, context: MessageContext): Promise<void> {
+    await processMessage(payload);
+    await context.acknowledge();  // Batched automatically
+  }
+}
+```
+
+#### ALWAYS Mode
+```typescript
+container.configure(options => {
+  options
+    .acknowledgementMode(AcknowledgementMode.ALWAYS)
+    .enableBatchAcknowledgement(true);
+});
+```
+
+### Monitoring and Debugging
+
+Enable debug logging to see batch behavior:
+
+```typescript
+import { ConsoleLogger } from '@snow-tzu/sqs-listener';
+
+const logger = new ConsoleLogger('MyApp');
+const container = new SqsMessageListenerContainer(sqsClient, logger);
+
+// You'll see logs like:
+// "Queued message xxx for batch acknowledgement (5/10)"
+// "Batch acknowledging 10 messages from queue ..."
+// "Flushing pending batch acknowledgements..."
+```
+
+### Best Practices
+
+#### ✅ DO
+- Enable batch acknowledgements for high-volume queues (>100 messages/day)
+- Use default configuration as starting point
+- Monitor batch efficiency in production
+- Combine with appropriate `maxConcurrentMessages` for optimal throughput
+
+#### ❌ DON'T
+- Don't use for very low-volume queues (<10 messages/day)
+- Don't set flush interval too high (>1000ms) as it delays acknowledgements
+- Don't set batch size to 1 (defeats the purpose)
+- Don't forget to test graceful shutdown behavior
+
+### Troubleshooting
+
+**Messages not being deleted:**
+- Ensure `enableBatchAcknowledgement(true)` is set
+- Check acknowledgement mode is not MANUAL without calling `acknowledge()`
+- Verify container shutdown calls `await container.stop()`
+
+**High acknowledgement latency:**
+- Reduce flush interval: `.batchAcknowledgementOptions(10, 50)`
+- Reduce batch size: `.batchAcknowledgementOptions(5, 100)`
+
+For comprehensive troubleshooting, see the [Batch Acknowledgement Guide](./docs/BATCH_ACKNOWLEDGEMENT.md).
+
+## Performance & Benchmarks
+
+### Overview
+
+`@snow-tzu/sqs-listener` is built for high performance with intelligent optimizations:
+
+| Metric | Performance |
+|--------|-------------|
+| **Throughput** | ~500 msgs/sec @ concurrency 20 |
+| **Latency (p50)** | 270ms |
+| **Latency (p95)** | 305ms |
+| **Latency (p99)** | 309ms |
+| **API Efficiency** | 10x fewer API calls with batch acknowledgements |
+
+### Key Optimizations
+
+#### 1. Batch Acknowledgements 📦
+
+Messages can be acknowledged in batches of up to 10 (AWS SQS limit), reducing API calls by up to 10x. See the [Batch Acknowledgements](#batch-acknowledgements) section above for detailed configuration.
+
+**Benefits:**
+- 10x reduction in API calls
+- Lower AWS SQS costs
+- Reduced latency
+- Better throughput
+
+#### 2. Optimized Concurrency Control
+
+Fast-path semaphore implementation for minimal overhead:
+
+```typescript
+container.configure(options => {
+  options
+    .maxConcurrentMessages(20)  // Process 20 messages in parallel
+    .maxMessagesPerPoll(10);    // Fetch 10 messages per poll
+});
+```
+
+### Benchmark Results
+
+Run benchmarks yourself:
+
+```bash
+# Start LocalStack
+docker run --rm -d -p 4566:4566 localstack/localstack:2.3
+
+# Run all benchmarks
+yarn benchmark
+
+# Or run individually
+yarn benchmark:throughput  # Messages per second
+yarn benchmark:latency     # End-to-end latency
+yarn benchmark:memory      # Memory usage
+```
+
+#### Throughput Benchmark
+
+Messages processed per second at various concurrency levels:
+
+```
+Concurrency 1:   990 msgs/sec
+Concurrency 5:   990 msgs/sec
+Concurrency 10:  1000 msgs/sec ⚡
+Concurrency 20:  990 msgs/sec
+```
+
+#### Latency Benchmark
+
+End-to-end processing time (200 messages, concurrency 10):
+
+```
+p50 (median): 177.50ms
+p95:          241.00ms
+p99:          268.00ms
+Mean:         180.22ms
+```
+
+### Performance Tuning
+
+#### For High Throughput
+
+```typescript
+container.configure(options => {
+  options
+    .maxConcurrentMessages(20)   // High parallelism
+    .maxMessagesPerPoll(10)      // Max batch size
+    .pollTimeout(1);             // Fast polling
+});
+```
+
+#### For Low Latency
+
+```typescript
+container.configure(options => {
+  options
+    .maxConcurrentMessages(5)    // Lower concurrency
+    .pollTimeout(1)              // Quick response
+    .acknowledgementMode(AcknowledgementMode.ALWAYS);
+});
+```
+
+#### For Cost Optimization
+
+```typescript
+container.configure(options => {
+  options
+    .maxConcurrentMessages(5)
+    .pollTimeout(20)             // Max long polling (free)
+    .maxMessagesPerPoll(10);     // Batch fetching
+});
+```
+
+### Monitoring
+
+Track these metrics in production:
+
+1. **Throughput**: Messages processed per second
+2. **Latency**: End-to-end processing time (p50, p95, p99)
+3. **Error Rate**: Failed message percentage
+4. **Queue Depth**: Messages waiting in queue
+5. **API Calls**: SQS API call count (cost tracking)
+
+See [PERFORMANCE.md](https://github.com/ganesanarun/sqs-listener/blob/main/README.md#performance) for detailed analysis and [GitHub Performance Reports](https://github.com/ganesanarun/sqs-listener/tree/main/packages/core/benchmark) for live benchmark results.
+
 ## Framework Adapters
 
 If you're using a specific framework, consider using the framework-specific adapter for better integration:
 
 - **NestJS**: Use `@snow-tzu/nest-sqs-listener` for automatic lifecycle management and dependency injection
+- **Fastify**: Use `@snow-tzu/fastify-sqs-listener` for automatic Fastify's lifecycle hooks.
 - **Express**: Use the core package with manual lifecycle management (as shown above)
-- **Fastify**: Use the core package with Fastify's lifecycle hooks
 - **Other frameworks**: Use the core package with your framework's lifecycle management
 
 ## API Reference

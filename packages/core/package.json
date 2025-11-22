@@ -1,6 +1,6 @@
 {
   "name": "@snow-tzu/sqs-listener",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Framework-agnostic SQS message listener with type safety and validation",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -8,7 +8,12 @@
     "build": "tsc",
     "test": "jest",
     "test:watch": "jest --watch",
+    "test:integration": "jest --config jest.config.integration.js",
     "test:cov": "jest --coverage",
+    "benchmark": "ts-node benchmark/run-all.ts",
+    "benchmark:throughput": "ts-node benchmark/throughput.bench.ts",
+    "benchmark:latency": "ts-node benchmark/latency.bench.ts",
+    "benchmark:memory": "ts-node benchmark/memory.bench.ts",
     "clean": "rm -rf dist coverage",
     "prepublishOnly": "yarn build"
   },
@@ -31,7 +36,8 @@
     "typescript": "^5.0.0",
     "@aws-sdk/client-sqs": "^3.0.0",
     "class-transformer": "^0.5.1",
-    "reflect-metadata": "^0.1.13"
+    "reflect-metadata": "^0.1.13",
+    "ts-node": "^10.9.0"
   },
   "peerDependencies": {
     "class-validator": "^0.14.0",

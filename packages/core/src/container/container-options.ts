@@ -41,6 +41,11 @@ export class ContainerOptions {
     private _validationFailureMode?: ValidationFailureMode;
     private _validatorOptions?: ValidatorOptions;
 
+    // Batch acknowledgement options (opt-in)
+    private _enableBatchAcknowledgement?: boolean;
+    private _batchAckMaxSize?: number;
+    private _batchAckFlushIntervalMs?: number;
+
     /**
      * Sets the queue name or full queue URL.
      *
@@ -149,6 +154,36 @@ export class ContainerOptions {
             throw new Error('pollingErrorBackoff must be non-negative');
         }
         this._pollingErrorBackoff = seconds;
+        return this;
+    }
+
+    /**
+     * Enable or disable batch acknowledgements (DeleteMessageBatch).
+     * Default: disabled (opt-in)
+     */
+    enableBatchAcknowledgement(enabled: boolean): this {
+        this._enableBatchAcknowledgement = enabled;
+        return this;
+    }
+
+    /**
+     * Configure batch acknowledgement options.
+     * @param maxSize Max entries per batch (1-10, default 10)
+     * @param flushIntervalMs Flush interval for partial batches (default 100ms)
+     */
+    batchAcknowledgementOptions(maxSize?: number, flushIntervalMs?: number): this {
+        if (maxSize !== undefined) {
+            if (maxSize < 1 || maxSize > 10) {
+                throw new Error('batchAckMaxSize must be between 1 and 10');
+            }
+            this._batchAckMaxSize = maxSize;
+        }
+        if (flushIntervalMs !== undefined) {
+            if (flushIntervalMs < 0) {
+                throw new Error('batchAckFlushIntervalMs must be non-negative');
+            }
+            this._batchAckFlushIntervalMs = flushIntervalMs;
+        }
         return this;
     }
 
@@ -287,6 +322,9 @@ export class ContainerOptions {
             pollingErrorBackoff: this._pollingErrorBackoff,
             messageConverter: messageConverter,
             maxPollCycles: this._maxPollCycles,
+            enableBatchAcknowledgement: this._enableBatchAcknowledgement,
+            batchAckMaxSize: this._batchAckMaxSize,
+            batchAckFlushIntervalMs: this._batchAckFlushIntervalMs,
         };
     }
 }

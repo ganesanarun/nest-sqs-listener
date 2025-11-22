@@ -1,6 +1,6 @@
 {
   "name": "@snow-tzu/nest-sqs-listener",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "NestJS adapter for @snow-tzu/sqs-listener",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -22,7 +22,7 @@
   "author": "ganesan arunachalam",
   "license": "MIT",
   "dependencies": {
-    "@snow-tzu/sqs-listener": "0.0.3"
+    "@snow-tzu/sqs-listener": "0.0.6"
   },
   "devDependencies": {
     "@nestjs/common": "^10.0.0",

@@ -77,6 +77,8 @@ export class SqsManager {
                 .maxConcurrentMessages(5)
                 .visibilityTimeout(30)
                 .messageConverter(converter)
+                .enableBatchAcknowledgement(true)  // Enable batch acknowledgements
+                .batchAcknowledgementOptions(10, 100)
                 .autoStartup(false);
         });
 

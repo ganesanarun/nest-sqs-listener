@@ -2,6 +2,7 @@ import {DeleteMessageCommand, SQSClient} from '@aws-sdk/client-sqs';
 import {MessageContext} from './message-context.interface';
 import {SQSMessage, SQSMessageAttributes} from '../types/sqs-types';
 import {LoggerInterface} from '../logger/logger.interface';
+import {BatchAcknowledgementManager} from '../container/batch-acknowledgement-manager';
 
 /**
  * Implementation of MessageContext that wraps an SQS message and provides
@@ -12,7 +13,8 @@ export class MessageContextImpl implements MessageContext {
         private readonly message: SQSMessage,
         private readonly queueUrl: string,
         private readonly sqsClient: SQSClient,
-        private readonly logger: LoggerInterface
+        private readonly logger: LoggerInterface,
+        private readonly batchAckManager?: BatchAcknowledgementManager
     ) {
     }
 
@@ -50,6 +52,17 @@ export class MessageContextImpl implements MessageContext {
 
     async acknowledge(): Promise<void> {
         try {
+            // Use batch manager if available for better performance
+            if (this.batchAckManager) {
+                await this.batchAckManager.acknowledge(
+                    this.message.MessageId!,
+                    this.message.ReceiptHandle!,
+                    this.queueUrl
+                );
+                return;
+            }
+
+            // Fall back to immediate single-message acknowledgement
             const command = new DeleteMessageCommand({
                 QueueUrl: this.queueUrl,
                 ReceiptHandle: this.message.ReceiptHandle,

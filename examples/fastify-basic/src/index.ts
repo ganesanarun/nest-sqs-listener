@@ -86,6 +86,8 @@ async function bootstrap() {
         maxConcurrentMessages: 5,
         enableValidation: true,
         validationFailureMode: ValidationFailureMode.THROW,
+        enableBatchAcknowledgement: true,  // Enable batch acknowledgements
+        batchAcknowledgementOptions: { maxSize: 10, flushIntervalMs: 100 },
         containerId: 'order-processor'
     });
 
@@ -102,6 +104,8 @@ async function bootstrap() {
         autoStartup: true,
         maxConcurrentMessages: 3,
         enableValidation: true,
+        enableBatchAcknowledgement: true,  // Enable batch acknowledgements
+        batchAcknowledgementOptions: { maxSize: 5, flushIntervalMs: 50 },  // Smaller batches for notifications
         containerId: 'notification-processor'
     });
 

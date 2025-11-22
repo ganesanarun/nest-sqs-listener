@@ -10,6 +10,7 @@ export { ConsoleLogger } from './logger/console-logger';
 export { SqsMessageListenerContainer } from './container/sqs-message-listener-container';
 export { ContainerOptions } from './container/container-options';
 export { Semaphore } from './container/semaphore';
+export { BatchAcknowledgementManager, BatchAckOptions } from './container/batch-acknowledgement-manager';
 
 // ============================================================================
 // Converter Exports

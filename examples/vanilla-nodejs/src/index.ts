@@ -64,6 +64,8 @@ async function main() {
             .maxConcurrentMessages(5)
             .messageConverter(converter)
             .visibilityTimeout(30)
+            .enableBatchAcknowledgement(true)  // Enable batch acknowledgements
+            .batchAcknowledgementOptions(10, 100)
             .autoStartup(false); // Manual startup for explicit control
     });
 
