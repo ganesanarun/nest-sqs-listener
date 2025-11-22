@@ -66,6 +66,23 @@ const sqsListenerPluginImpl: FastifyPluginAsync<FastifySqsListenerOptions> = asy
         throw new Error('Invalid plugin options: listener.listener is required and must implement QueueListener interface');
     }
 
+    // Validate batch acknowledgement options
+    if (options.batchAcknowledgementOptions) {
+        const { maxSize, flushIntervalMs } = options.batchAcknowledgementOptions;
+        
+        if (maxSize !== undefined) {
+            if (!Number.isInteger(maxSize) || maxSize < 1 || maxSize > 10) {
+                throw new Error(`Invalid plugin options: batchAcknowledgementOptions.maxSize must be between 1 and 10 (inclusive), got: ${maxSize}`);
+            }
+        }
+        
+        if (flushIntervalMs !== undefined) {
+            if (!Number.isFinite(flushIntervalMs) || flushIntervalMs < 0) {
+                throw new Error(`Invalid plugin options: batchAcknowledgementOptions.flushIntervalMs must be non-negative, got: ${flushIntervalMs}`);
+            }
+        }
+    }
+
     // Create the Fastify SQS container
     const container = new FastifySqsContainer(
         options.sqsClient,
@@ -121,6 +138,35 @@ const sqsListenerPluginImpl: FastifyPluginAsync<FastifySqsListenerOptions> = asy
 
         if (options.validatorOptions !== undefined) {
             containerOptions.validatorOptions(options.validatorOptions);
+        }
+
+        // Configure batch acknowledgement options
+        if (options.enableBatchAcknowledgement !== undefined) {
+            containerOptions.enableBatchAcknowledgement(options.enableBatchAcknowledgement);
+            
+            // Apply batch acknowledgement options when batch acknowledgement is enabled
+            if (options.enableBatchAcknowledgement) {
+                if (options.batchAcknowledgementOptions !== undefined) {
+                    // Use custom options
+                    containerOptions.batchAcknowledgementOptions(
+                        options.batchAcknowledgementOptions.maxSize,
+                        options.batchAcknowledgementOptions.flushIntervalMs
+                    );
+                    
+                    // Log batch acknowledgement configuration for debugging
+                    fastify.log.debug({
+                        maxSize: options.batchAcknowledgementOptions.maxSize,
+                        flushIntervalMs: options.batchAcknowledgementOptions.flushIntervalMs
+                    }, 'Batch acknowledgement enabled with custom options');
+                } else {
+                    // Use defaults by calling batchAcknowledgementOptions with undefined values
+                    // This ensures the core package's default mechanism is used
+                    containerOptions.batchAcknowledgementOptions(undefined, undefined);
+                    
+                    // Log when batch acknowledgement is enabled with defaults
+                    fastify.log.debug('Batch acknowledgement enabled with default options (maxSize: 10, flushIntervalMs: 100ms)');
+                }
+            }
         }
     });
 

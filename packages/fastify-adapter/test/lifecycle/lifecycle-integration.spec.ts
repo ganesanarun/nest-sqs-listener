@@ -1,7 +1,7 @@
-import Fastify, { FastifyInstance } from 'fastify';
-import { SQSClient } from '@aws-sdk/client-sqs';
-import { FastifySqsListenerOptions, sqsListenerPlugin } from '../../src';
-import { AcknowledgementMode, MessageContext, QueueListener } from '@snow-tzu/sqs-listener';
+import Fastify, {FastifyInstance} from 'fastify';
+import {SQSClient} from '@aws-sdk/client-sqs';
+import {FastifySqsListenerOptions, sqsListenerPlugin} from '../../src';
+import {MessageContext, QueueListener} from '@snow-tzu/sqs-listener';
 
 class TestMessage {
     id: string;
@@ -15,8 +15,6 @@ class TestMessage {
 
 class TestListener implements QueueListener<TestMessage> {
     public processedMessages: TestMessage[] = [];
-    public startCalled = false;
-    public stopCalled = false;
 
     async onMessage(payload: TestMessage, context: MessageContext): Promise<void> {
         this.processedMessages.push(payload);
@@ -29,8 +27,8 @@ describe('Lifecycle Integration', () => {
     let testListener: TestListener;
 
     beforeEach(() => {
-        fastify = Fastify({ logger: false });
-        mockSqsClient = new SQSClient({ region: 'us-east-1' });
+        fastify = Fastify({logger: false});
+        mockSqsClient = new SQSClient({region: 'us-east-1'});
         testListener = new TestListener();
     });
 
@@ -118,17 +116,17 @@ describe('Lifecycle Integration', () => {
 
             await fastify.register(sqsListenerPlugin, options);
             await fastify.ready();
-            
+
             const container = (fastify as any).sqsListener;
             expect(container).toBeDefined();
-            
+
             // Test that the container handles startup errors gracefully
             // by mocking the start method to throw an error
             const originalStart = container.start;
             container.start = jest.fn().mockRejectedValue(new Error('Startup failed'));
-            
+
             await expect(container.start()).rejects.toThrow('Startup failed');
-            
+
             // Restore original method
             container.start = originalStart;
         });
@@ -148,14 +146,14 @@ describe('Lifecycle Integration', () => {
             await fastify.ready();
 
             const container = (fastify as any).sqsListener;
-            
+
             // Mock the stop method to throw an error
             const originalStop = container.stop;
             container.stop = jest.fn().mockRejectedValue(new Error('Stop failed'));
 
             // Should not throw during close even if stop fails
             await expect(fastify.close()).resolves.not.toThrow();
-            
+
             // Restore original method
             container.stop = originalStop;
         });

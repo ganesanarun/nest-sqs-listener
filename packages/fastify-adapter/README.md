@@ -11,6 +11,19 @@ Fastify plugin for integrating SQS message consumption with native Fastify patte
 - 🎯 **Composable Patterns** - Support for QueueListener interface and decorators
 - ⚡ **Framework-Agnostic Core** - Same message processing logic across all frameworks
 
+## Performance
+
+This adapter provides the same high-performance characteristics as the core package:
+
+- **Throughput**: ~500 msgs/sec at concurrency 20
+- **Latency**: p95 < 310ms, p99 < 320ms
+- **Memory Efficient**: ~12.3MB average increase with no memory leaks
+- **Cost Optimized**: 10x fewer API calls with batch acknowledgements
+
+For detailed performance analysis and benchmark results, see:
+- [Core Package Performance Documentation](https://github.com/ganesanarun/sqs-listener/blob/main/README.md#performance)
+- [Performance Reports](https://github.com/ganesanarun/sqs-listener/tree/main/packages/core/benchmark)
+
 ## Installation
 
 ```bash
@@ -534,6 +547,186 @@ await fastify.register(sqsListenerPlugin, {
 });
 ```
 
+## Batch Acknowledgements
+
+Batch acknowledgements can reduce your AWS SQS API calls by up to 10x, providing significant cost savings and performance improvements for high-volume Fastify applications.
+
+### Quick Start
+
+Enable batch acknowledgements in your Fastify plugin configuration:
+
+```typescript
+import Fastify from 'fastify';
+import { SQSClient } from '@aws-sdk/client-sqs';
+import { sqsListenerPlugin } from '@snow-tzu/fastify-sqs-listener';
+
+const fastify = Fastify({ logger: true });
+
+const sqsClient = new SQSClient({ region: 'us-east-1' });
+
+await fastify.register(sqsListenerPlugin, {
+  queueNameOrUrl: 'order-queue',
+  listener: {
+    messageType: OrderCreatedEvent,
+    listener: new OrderListener(fastify.log)
+  },
+  sqsClient,
+  enableBatchAcknowledgement: true,  // Enable batch acknowledgements
+  batchAcknowledgementOptions: { maxSize: 10, flushIntervalMs: 100 },
+  autoStartup: true
+});
+
+await fastify.listen({ port: 3000 });
+```
+
+### Advanced Configuration
+
+#### High-Volume Applications
+
+For applications processing thousands of messages, maximize cost savings:
+
+```typescript
+await fastify.register(sqsListenerPlugin, {
+  queueNameOrUrl: 'high-volume-queue',
+  listener: {
+    messageType: HighVolumeEvent,
+    listener: new HighVolumeListener(fastify.log)
+  },
+  sqsClient,
+  maxConcurrentMessages: 20,
+  enableBatchAcknowledgement: true,
+  batchAcknowledgementOptions: {
+    maxSize: 10,        // Maximum batch size (AWS limit)
+    flushIntervalMs: 200 // Wait longer for larger batches
+  }
+});
+```
+
+#### Low-Latency Applications
+
+For applications where acknowledgement latency matters:
+
+```typescript
+await fastify.register(sqsListenerPlugin, {
+  queueNameOrUrl: 'low-latency-queue',
+  listener: {
+    messageType: UrgentEvent,
+    listener: new UrgentListener(fastify.log)
+  },
+  sqsClient,
+  enableBatchAcknowledgement: true,
+  batchAcknowledgementOptions: {
+    maxSize: 5,         // Smaller batches
+    flushIntervalMs: 50 // Flush quickly
+  }
+});
+```
+
+### Multiple Queues with Different Batch Settings
+
+Register multiple plugins with different batch acknowledgement configurations:
+
+```typescript
+import Fastify from 'fastify';
+import { sqsListenerPlugin } from '@snow-tzu/fastify-sqs-listener';
+
+const fastify = Fastify({ logger: true });
+
+// High-volume order processing
+await fastify.register(sqsListenerPlugin, {
+  queueNameOrUrl: 'order-queue',
+  listener: {
+    messageType: OrderCreatedEvent,
+    listener: new OrderListener(fastify.log)
+  },
+  sqsClient,
+  enableBatchAcknowledgement: true,
+  batchAcknowledgementOptions: {
+    maxSize: 10,
+    flushIntervalMs: 100
+  }
+});
+
+// Critical notifications (low latency)
+await fastify.register(sqsListenerPlugin, {
+  queueNameOrUrl: 'notification-queue',
+  listener: {
+    messageType: NotificationEvent,
+    listener: new NotificationListener(fastify.log)
+  },
+  sqsClient,
+  enableBatchAcknowledgement: true,
+  batchAcknowledgementOptions: {
+    maxSize: 3,         // Small batches
+    flushIntervalMs: 25 // Very fast flush
+  }
+});
+
+await fastify.listen({ port: 3000 });
+```
+
+### Manual Acknowledgement with Batching
+
+Combine manual acknowledgement with batch processing for fine-grained control:
+
+```typescript
+import { QueueListener, MessageContext } from '@snow-tzu/sqs-listener';
+
+class TransactionalOrderListener implements QueueListener<OrderCreatedEvent> {
+  constructor(private logger: any) {}
+
+  async handle(event: OrderCreatedEvent, context: MessageContext): Promise<void> {
+    try {
+      // Start database transaction
+      await this.beginTransaction();
+      
+      // Process order
+      await this.processOrder(event);
+      
+      // Process payment
+      await this.processPayment(event);
+      
+      // Commit transaction
+      await this.commitTransaction();
+      
+      // Acknowledge only after successful transaction
+      await context.acknowledge();  // Batched automatically
+      
+      this.logger.info(`Order ${event.orderId} processed successfully`);
+    } catch (error) {
+      await this.rollbackTransaction();
+      this.logger.error(`Order ${event.orderId} failed: ${error.message}`);
+      throw error; // Don't acknowledge - message will retry
+    }
+  }
+}
+
+// Register with manual acknowledgement and batching
+await fastify.register(sqsListenerPlugin, {
+  queueNameOrUrl: 'transactional-queue',
+  listener: {
+    messageType: OrderCreatedEvent,
+    listener: new TransactionalOrderListener(fastify.log)
+  },
+  sqsClient,
+  acknowledgementMode: AcknowledgementMode.MANUAL,  // Manual control
+  enableBatchAcknowledgement: true,                 // But still batch
+  autoStartup: true
+});
+```
+
+### Configuration Options Summary
+
+```typescript
+interface FastifyBatchAcknowledgementOptions {
+  enableBatchAcknowledgement?: boolean;           // Enable/disable batching
+  batchAcknowledgementOptions?: {
+    maxSize?: number;                             // Max batch size (1-10, default: 10)
+    flushIntervalMs?: number;                     // Flush interval (default: 100ms)
+  };
+}
+```
+
 ## Fastify Lifecycle Integration
 
 The plugin integrates seamlessly with Fastify's lifecycle hooks:
@@ -849,51 +1042,6 @@ test('SQS plugin registration', async (t) => {
 });
 ```
 
-## Migration from Core Package
-
-If you're currently using the core package directly with Fastify, migration is straightforward:
-
-### Before (Core Package)
-
-```typescript
-import Fastify from 'fastify';
-import { SqsMessageListenerContainer } from '@snow-tzu/sqs-listener';
-
-const fastify = Fastify();
-const container = new SqsMessageListenerContainer(sqsClient, fastify.log);
-
-container.configure(options => {
-  options
-    .queueName('my-queue')
-    .messageType(MyMessage)
-    .autoStartup(false);
-});
-
-container.setMessageListener(new MyListener());
-
-fastify.addHook('onReady', () => container.start());
-fastify.addHook('onClose', () => container.stop());
-```
-
-### After (Fastify Plugin)
-
-```typescript
-import Fastify from 'fastify';
-import { sqsListenerPlugin } from '@snow-tzu/fastify-sqs-listener';
-
-const fastify = Fastify();
-
-await fastify.register(sqsListenerPlugin, {
-  queueNameOrUrl: 'my-queue',
-  listener: 
-    {
-      messageType: MyMessage,
-      listener: new MyListener()
-    },
-  sqsClient,
-  autoStartup: true // Automatic lifecycle management
-});
-```
 
 ## Related Packages
 

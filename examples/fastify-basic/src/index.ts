@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import 'dotenv/config';
 import Fastify from 'fastify';
 import {SQSClient} from '@aws-sdk/client-sqs';
-import {sqsListenerPlugin,ValidationFailureMode} from '@snow-tzu/fastify-sqs-listener';
+import {sqsListenerPlugin, ValidationFailureMode} from '@snow-tzu/fastify-sqs-listener';
 
 // Import events
 import {OrderCreatedEvent} from './events/order-created.event';
@@ -87,7 +87,7 @@ async function bootstrap() {
         enableValidation: true,
         validationFailureMode: ValidationFailureMode.THROW,
         enableBatchAcknowledgement: true,  // Enable batch acknowledgements
-        batchAcknowledgementOptions: { maxSize: 10, flushIntervalMs: 100 },
+        batchAcknowledgementOptions: {maxSize: 10, flushIntervalMs: 100},
         containerId: 'order-processor'
     });
 
@@ -105,7 +105,7 @@ async function bootstrap() {
         maxConcurrentMessages: 3,
         enableValidation: true,
         enableBatchAcknowledgement: true,  // Enable batch acknowledgements
-        batchAcknowledgementOptions: { maxSize: 5, flushIntervalMs: 50 },  // Smaller batches for notifications
+        batchAcknowledgementOptions: {maxSize: 5, flushIntervalMs: 50},  // Smaller batches for notifications
         containerId: 'notification-processor'
     });
 

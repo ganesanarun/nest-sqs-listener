@@ -283,7 +283,9 @@ await fastify.register(sqsListenerPlugin, {
     visibilityTimeout: 30,          // Message visibility timeout (seconds)
     acknowledgementMode: 'ON_SUCCESS', // When to acknowledge messages
     pollingErrorBackoff: 5,         // Backoff on polling errors (seconds)
-    containerId: 'my-processor'     // Container ID for logging
+    containerId: 'my-processor',     // Container ID for logging
+    enableBatchAcknowledgement: true,  // Enable batch acknowledgements
+    batchAcknowledgementOptions: {maxSize: 5, flushIntervalMs: 50},  // Smaller batches for notifications
 });
 ```
 
