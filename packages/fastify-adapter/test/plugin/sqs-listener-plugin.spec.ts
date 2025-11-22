@@ -261,6 +261,177 @@ describe('SQS Listener Plugin', () => {
                 'Invalid plugin options: listener.listener is required and must implement QueueListener interface'
             );
         });
+
+        describe('Batch Acknowledgement Validation', () => {
+            it('should throw error when maxSize is less than 1', async () => {
+                const options: FastifySqsListenerOptions = {
+                    queueNameOrUrl: 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
+                    listener: {
+                        messageType: TestMessage,
+                        listener: testListener
+                    },
+                    sqsClient: mockSqsClient,
+                    enableBatchAcknowledgement: true,
+                    batchAcknowledgementOptions: {
+                        maxSize: 0
+                    }
+                };
+
+                await expect(fastify.register(sqsListenerPlugin, options)).rejects.toThrow(
+                    'Invalid plugin options: batchAcknowledgementOptions.maxSize must be between 1 and 10 (inclusive), got: 0'
+                );
+            });
+
+            it('should throw error when maxSize is greater than 10', async () => {
+                const options: FastifySqsListenerOptions = {
+                    queueNameOrUrl: 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
+                    listener: {
+                        messageType: TestMessage,
+                        listener: testListener
+                    },
+                    sqsClient: mockSqsClient,
+                    enableBatchAcknowledgement: true,
+                    batchAcknowledgementOptions: {
+                        maxSize: 11
+                    }
+                };
+
+                await expect(fastify.register(sqsListenerPlugin, options)).rejects.toThrow(
+                    'Invalid plugin options: batchAcknowledgementOptions.maxSize must be between 1 and 10 (inclusive), got: 11'
+                );
+            });
+
+            it('should throw error when maxSize is not an integer', async () => {
+                const options: FastifySqsListenerOptions = {
+                    queueNameOrUrl: 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
+                    listener: {
+                        messageType: TestMessage,
+                        listener: testListener
+                    },
+                    sqsClient: mockSqsClient,
+                    enableBatchAcknowledgement: true,
+                    batchAcknowledgementOptions: {
+                        maxSize: 5.5
+                    }
+                };
+
+                await expect(fastify.register(sqsListenerPlugin, options)).rejects.toThrow(
+                    'Invalid plugin options: batchAcknowledgementOptions.maxSize must be between 1 and 10 (inclusive), got: 5.5'
+                );
+            });
+
+            it('should throw error when flushIntervalMs is negative', async () => {
+                const options: FastifySqsListenerOptions = {
+                    queueNameOrUrl: 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
+                    listener: {
+                        messageType: TestMessage,
+                        listener: testListener
+                    },
+                    sqsClient: mockSqsClient,
+                    enableBatchAcknowledgement: true,
+                    batchAcknowledgementOptions: {
+                        flushIntervalMs: -1
+                    }
+                };
+
+                await expect(fastify.register(sqsListenerPlugin, options)).rejects.toThrow(
+                    'Invalid plugin options: batchAcknowledgementOptions.flushIntervalMs must be non-negative, got: -1'
+                );
+            });
+
+            it('should throw error when flushIntervalMs is not finite', async () => {
+                const options: FastifySqsListenerOptions = {
+                    queueNameOrUrl: 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
+                    listener: {
+                        messageType: TestMessage,
+                        listener: testListener
+                    },
+                    sqsClient: mockSqsClient,
+                    enableBatchAcknowledgement: true,
+                    batchAcknowledgementOptions: {
+                        flushIntervalMs: Infinity
+                    }
+                };
+
+                await expect(fastify.register(sqsListenerPlugin, options)).rejects.toThrow(
+                    'Invalid plugin options: batchAcknowledgementOptions.flushIntervalMs must be non-negative, got: Infinity'
+                );
+            });
+
+            it('should accept valid maxSize values (1-10)', async () => {
+                for (const maxSize of [1, 5, 10]) {
+                    const options: FastifySqsListenerOptions = {
+                        queueNameOrUrl: 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
+                        listener: {
+                            messageType: TestMessage,
+                            listener: testListener
+                        },
+                        sqsClient: mockSqsClient,
+                        enableBatchAcknowledgement: true,
+                        batchAcknowledgementOptions: {
+                            maxSize
+                        }
+                    };
+
+                    await expect(fastify.register(sqsListenerPlugin, options)).resolves.not.toThrow();
+                    await fastify.close();
+                    fastify = Fastify({logger: false});
+                }
+            });
+
+            it('should accept valid flushIntervalMs values (non-negative)', async () => {
+                for (const flushIntervalMs of [0, 50, 100, 1000]) {
+                    const options: FastifySqsListenerOptions = {
+                        queueNameOrUrl: 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
+                        listener: {
+                            messageType: TestMessage,
+                            listener: testListener
+                        },
+                        sqsClient: mockSqsClient,
+                        enableBatchAcknowledgement: true,
+                        batchAcknowledgementOptions: {
+                            flushIntervalMs
+                        }
+                    };
+
+                    await expect(fastify.register(sqsListenerPlugin, options)).resolves.not.toThrow();
+                    await fastify.close();
+                    fastify = Fastify({logger: false});
+                }
+            });
+
+            it('should accept both maxSize and flushIntervalMs together', async () => {
+                const options: FastifySqsListenerOptions = {
+                    queueNameOrUrl: 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
+                    listener: {
+                        messageType: TestMessage,
+                        listener: testListener
+                    },
+                    sqsClient: mockSqsClient,
+                    enableBatchAcknowledgement: true,
+                    batchAcknowledgementOptions: {
+                        maxSize: 8,
+                        flushIntervalMs: 50
+                    }
+                };
+
+                await expect(fastify.register(sqsListenerPlugin, options)).resolves.not.toThrow();
+            });
+
+            it('should work without batchAcknowledgementOptions when enableBatchAcknowledgement is true', async () => {
+                const options: FastifySqsListenerOptions = {
+                    queueNameOrUrl: 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
+                    listener: {
+                        messageType: TestMessage,
+                        listener: testListener
+                    },
+                    sqsClient: mockSqsClient,
+                    enableBatchAcknowledgement: true
+                };
+
+                await expect(fastify.register(sqsListenerPlugin, options)).resolves.not.toThrow();
+            });
+        });
     });
 
     describe('Plugin Encapsulation', () => {

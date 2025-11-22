@@ -21,13 +21,16 @@ export class Semaphore {
      * @returns A promise that resolves when a permit is acquired
      */
     async acquire(): Promise<void> {
-        if (this.waiting.length > 0 || this.permits === 0) {
-            return new Promise<void>((resolve) => {
-                this.waiting.push(resolve);
-            });
+        // Check if permits are available first (fast path)
+        if (this.permits > 0 && this.waiting.length === 0) {
+            this.permits--;
+            return;
         }
 
-        this.permits--;
+        // No permits available or there are waiting acquirers, queue this request
+        return new Promise<void>((resolve) => {
+            this.waiting.push(resolve);
+        });
     }
 
     /**

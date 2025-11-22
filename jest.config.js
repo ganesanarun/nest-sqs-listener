@@ -2,6 +2,7 @@ module.exports = {
     projects: [
         '<rootDir>/packages/core',
         '<rootDir>/packages/nestjs-adapter',
+        '<rootDir>/packages/fastify-adapter',
     ],
     coverageDirectory: '<rootDir>/coverage',
     collectCoverageFrom: [

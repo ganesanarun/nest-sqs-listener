@@ -34,6 +34,9 @@ import {ORDER_CONTAINER, SQS_CLIENT} from '../tokens';
                         .maxConcurrentMessages(5)
                         .visibilityTimeout(30)
                         .maxMessagesPerPoll(10)
+                        // Enable batch acknowledgements for better performance
+                        .enableBatchAcknowledgement(true)
+                        .batchAcknowledgementOptions(10, 100)
                         // Enable validation with class-validator decorators
                         .targetClass(OrderCreatedEvent)
                         .enableValidation(true)

@@ -11,8 +11,15 @@
   "scripts": {
     "build": "yarn workspaces run build",
     "test": "yarn workspaces run test",
+    "test:unit": "yarn workspaces run test",
     "test:watch": "yarn workspaces run test:watch",
     "test:cov": "yarn workspaces run test:cov",
+    "test:integration": "jest --config jest.config.integration.js --runInBand --verbose",
+    "test:integration:watch": "jest --config jest.config.integration.js --runInBand --verbose --watch",
+    "test:integration:localstack": "docker-compose -f examples/docker-compose.yml up -d localstack && yarn test:integration && docker-compose -f examples/docker-compose.yml down",
+    "test:all": "yarn test && yarn test:integration",
+    "localstack:start": "docker-compose -f examples/docker-compose.yml up -d localstack",
+    "localstack:stop": "docker-compose -f examples/docker-compose.yml down",
     "clean": "yarn workspaces run clean",
     "clean:all": "yarn workspaces run clean && rm -rf node_modules"
   },

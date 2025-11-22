@@ -155,4 +155,109 @@ export interface FastifySqsListenerOptions<T = any> {
      * ```
      */
     validatorOptions?: ValidatorOptions;
+
+    /** 
+     * Enable batch acknowledgements to reduce SQS API calls.
+     * 
+     * When enabled, message deletions are batched into groups of up to 10
+     * messages per API call, reducing network overhead by up to 10x.
+     * This is particularly beneficial for high-throughput applications
+     * processing many messages per second.
+     * 
+     * Batch acknowledgement works by collecting message deletion requests
+     * and sending them in batches to SQS using the DeleteMessageBatch API.
+     * Messages are batched based on maxSize and flushed at regular intervals
+     * defined by flushIntervalMs.
+     * 
+     * @example
+     * ```typescript
+     * // Enable batch acknowledgement with defaults
+     * await fastify.register(sqsListenerPlugin, {
+     *   queueNameOrUrl: 'orders',
+     *   listener: { messageType: OrderEvent, listener: new OrderListener() },
+     *   sqsClient,
+     *   enableBatchAcknowledgement: true
+     * });
+     * 
+     * // Enable with custom batch settings
+     * await fastify.register(sqsListenerPlugin, {
+     *   queueNameOrUrl: 'orders',
+     *   listener: { messageType: OrderEvent, listener: new OrderListener() },
+     *   sqsClient,
+     *   enableBatchAcknowledgement: true,
+     *   batchAcknowledgementOptions: {
+     *     maxSize: 8,        // Batch up to 8 messages
+     *     flushIntervalMs: 50 // Flush every 50ms
+     *   }
+     * });
+     * ```
+     * 
+     * @default false
+     */
+    enableBatchAcknowledgement?: boolean;
+
+    /** 
+     * Configuration options for batch acknowledgement behavior.
+     * 
+     * Only applies when enableBatchAcknowledgement is true.
+     * If not provided, default values will be used (maxSize: 10, flushIntervalMs: 100).
+     * 
+     * The maxSize determines how many messages are batched together before
+     * sending a DeleteMessageBatch request to SQS. AWS SQS supports up to
+     * 10 messages per batch request.
+     * 
+     * The flushIntervalMs determines how often partial batches are flushed
+     * to ensure messages don't wait too long for acknowledgement, even if
+     * the batch isn't full.
+     * 
+     * @example
+     * ```typescript
+     * // Conservative batching for lower latency
+     * batchAcknowledgementOptions: {
+     *   maxSize: 5,         // Smaller batches
+     *   flushIntervalMs: 25 // More frequent flushes
+     * }
+     * 
+     * // Aggressive batching for maximum throughput
+     * batchAcknowledgementOptions: {
+     *   maxSize: 10,         // Maximum batch size
+     *   flushIntervalMs: 200 // Less frequent flushes
+     * }
+     * 
+     * // Immediate flushing (no batching delay)
+     * batchAcknowledgementOptions: {
+     *   maxSize: 10,
+     *   flushIntervalMs: 0   // Flush immediately when batch is ready
+     * }
+     * ```
+     */
+    batchAcknowledgementOptions?: {
+        /** 
+         * Maximum number of messages per batch.
+         * 
+         * Must be between 1 and 10 (inclusive) to comply with AWS SQS
+         * DeleteMessageBatch API limits. Higher values reduce API calls
+         * but may increase latency for individual message acknowledgements.
+         * 
+         * @minimum 1
+         * @maximum 10
+         * @default 10
+         */
+        maxSize?: number;
+        
+        /** 
+         * Flush interval for partial batches in milliseconds.
+         * 
+         * Determines how often partial batches are sent to SQS even if
+         * they haven't reached maxSize. This prevents messages from waiting
+         * indefinitely for acknowledgement in low-throughput scenarios.
+         * 
+         * Set to 0 to disable interval-based flushing (batches will only
+         * be sent when they reach maxSize).
+         * 
+         * @minimum 0
+         * @default 100
+         */
+        flushIntervalMs?: number;
+    };
 }

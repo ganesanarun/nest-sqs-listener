@@ -907,18 +907,18 @@
   dependencies:
     tslib "^2.6.2"
 
-"@snow-tzu/fastify-sqs-listener@^0.0.2":
-  version "0.0.2"
-  resolved "https://registry.yarnpkg.com/@snow-tzu/fastify-sqs-listener/-/fastify-sqs-listener-0.0.2.tgz#5b903dfb680644f97fabb62de02e7a75011d5894"
-  integrity sha512-XMdWI4/qIv4ZhFKapxyxObFJAKDkgQ76ZPsgRuS+1XKRu6owy42Cv4XGmTHN6+KzJ6/9uSBaB7x0m2cE1mc4Fg==
+"@snow-tzu/fastify-sqs-listener@^0.0.3":
+  version "0.0.3"
+  resolved "https://registry.yarnpkg.com/@snow-tzu/fastify-sqs-listener/-/fastify-sqs-listener-0.0.3.tgz#92d374182d83f0f20c917361350ce3108e609d11"
+  integrity sha512-FOpb0g4g/9ohLP63WOwLiMHSlesUv11HUUS/z2kEwXk2djaJrMpxUf2KkuqaSZBEO+W15Ct96ZjIBAA76Wshqw==
   dependencies:
-    "@snow-tzu/sqs-listener" "^0.0.4"
+    "@snow-tzu/sqs-listener" "^0.0.6"
     fastify-plugin "^4.0.0"
 
-"@snow-tzu/sqs-listener@^0.0.4":
-  version "0.0.4"
-  resolved "https://registry.yarnpkg.com/@snow-tzu/sqs-listener/-/sqs-listener-0.0.4.tgz#c407eac711387f1379e2fd5afe2d95c29418c97a"
-  integrity sha512-exQQ7JbYAgfNdgtoHezdEj09Jhe8qp0XHvBdHJwBfXe90d2OYwS0fYfWA/RA2dG92MdRbLHVJu35KKiYNVbjmQ==
+"@snow-tzu/sqs-listener@^0.0.6":
+  version "0.0.6"
+  resolved "https://registry.yarnpkg.com/@snow-tzu/sqs-listener/-/sqs-listener-0.0.6.tgz#3aba51687f9cce24d1d6239419192dc5f5697878"
+  integrity sha512-TM7fHOczGn7SzQWr72TqCbTUGW0p5gphtPxpCQf+UztxAy1vkcEXJpIhLtXL8VGF7E1WF2oGYQfkgNzXl+1ImA==
 
 "@tsconfig/node10@^1.0.7":
   version "1.0.12"

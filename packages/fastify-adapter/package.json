@@ -1,6 +1,6 @@
 {
   "name": "@snow-tzu/fastify-sqs-listener",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "description": "Fastify adapter for @snow-tzu/sqs-listener",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -24,7 +24,7 @@
   "author": "ganesan arunachalam",
   "license": "MIT",
   "dependencies": {
-    "@snow-tzu/sqs-listener": "^0.0.4",
+    "@snow-tzu/sqs-listener": "^0.0.6",
     "fastify-plugin": "^4.0.0"
   },
   "devDependencies": {

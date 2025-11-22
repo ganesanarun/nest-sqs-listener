@@ -14,6 +14,8 @@ import {Semaphore} from './semaphore';
 import {ValidationHandledError} from '../converter/validation-handled-error';
 import {LoggerInterface} from '../logger/logger.interface';
 import {ConsoleLogger} from '../logger/console-logger';
+import {BatchAcknowledgementManager} from './batch-acknowledgement-manager';
+import * as console from "node:console";
 
 /**
  * Main container class that manages the complete lifecycle of message consumption for a single SQS queue.
@@ -50,6 +52,7 @@ export class SqsMessageListenerContainer<T> {
     private errorHandler?: QueueListenerErrorHandler;
     private converter?: PayloadMessagingConverter<T>;
     private semaphore?: Semaphore;
+    private batchAckManager?: BatchAcknowledgementManager;
     private isRunning = false;
     private resolvedQueueUrl?: string;
     private inFlightMessages = 0;
@@ -182,6 +185,20 @@ export class SqsMessageListenerContainer<T> {
             this.semaphore = new Semaphore(this.config.maxConcurrentMessages);
         }
 
+        // Initialize batch acknowledgement manager only if enabled
+        if (this.config.enableBatchAcknowledgement) {
+            this.batchAckManager = new BatchAcknowledgementManager(
+                this.sqsClient,
+                this.logger,
+                {
+                    batchSize: this.config.batchAckMaxSize,
+                    flushIntervalMs: this.config.batchAckFlushIntervalMs,
+                }
+            );
+        } else {
+            this.batchAckManager = undefined;
+        }
+
         // Initialize converter if not already done
         if (!this.converter) {
             this.converter = new JsonPayloadMessagingConverter<T>();
@@ -215,6 +232,7 @@ export class SqsMessageListenerContainer<T> {
      * Waits for in-flight messages to complete.
      */
     async stop(): Promise<void> {
+        console.debug('Stopping SQS listener');
         if (!this.isRunning) {
             this.logger.debug('Stop called but container is not running');
             return;
@@ -249,6 +267,12 @@ export class SqsMessageListenerContainer<T> {
             await new Promise(resolve => setTimeout(resolve, 100));
         }
         this.logger.debug(`In-flight messages: ${this.inFlightMessages}`);
+
+        // Flush any pending batch acknowledgements
+        if (this.batchAckManager) {
+            this.logger.debug('Flushing pending batch acknowledgements...');
+            await this.batchAckManager.shutdown();
+        }
 
         this.logger.log(`Stopped container ${this.config.id || 'unnamed'}`);
     }
@@ -370,7 +394,8 @@ export class SqsMessageListenerContainer<T> {
                     message,
                     this.resolvedQueueUrl!,
                     this.sqsClient,
-                    this.logger
+                    this.logger,
+                    this.batchAckManager
                 );
 
                 // Convert message body to typed payload, passing context for validation scenarios
@@ -406,7 +431,8 @@ export class SqsMessageListenerContainer<T> {
                     message,
                     this.resolvedQueueUrl!,
                     this.sqsClient,
-                    this.logger
+                    this.logger,
+                    this.batchAckManager
                 );
 
                 // Try to convert payload for the error handler (may fail)

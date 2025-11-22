@@ -62,4 +62,19 @@ export interface ContainerConfiguration {
      * Duration to wait before retrying after a polling error
      */
     pollingErrorBackoff: number;
+
+    /**
+     * Enable batch acknowledgements using DeleteMessageBatch (default: false)
+     */
+    enableBatchAcknowledgement?: boolean;
+
+    /**
+     * Maximum messages per batch acknowledgement (1-10, default: 10)
+     */
+    batchAckMaxSize?: number;
+
+    /**
+     * Flush interval in milliseconds for partial batches (default: 100)
+     */
+    batchAckFlushIntervalMs?: number;
 }
